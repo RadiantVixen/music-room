@@ -1,0 +1,39 @@
+services:
+  auth-postgres:
+    image: postgres:15
+    restart: unless-stopped
+    networks:
+      - transcendence
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_pgdata:/var/lib/postgresql/data
+    env_file: ./auth/.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    depends_on:
+      - auth-postgres
+    build:
+      context: ./auth
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./auth:/app
+    networks:
+      - transcendence
+    env_file:
+      - ./auth/.env
+
+networks:
+  transcendence:
+    driver: bridge
+
+volumes:
+  auth_pgdata:
+
