@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import CustomUser, Profile
+from .models import CustomUser, Profile, MusicPreferences, FriendRequest, Room, RoomMembership
 from django.utils.text import slugify
 import re
 
@@ -321,3 +321,151 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
+# ─── Custom JWT claims ────────────────────────────────────────────────────────
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = 'email'
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['email'] = user.email
+        token['role'] = user.role
+        return token
+
+
+# ─── Music Preferences ────────────────────────────────────────────────────────
+
+class MusicPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MusicPreferences
+        fields = ['favorite_genres', 'favorite_artists', 'favorite_tracks', 'updated_at']
+        read_only_fields = ['updated_at']
+
+
+# ─── Friend System ────────────────────────────────────────────────────────────
+
+class FriendRequestSerializer(serializers.ModelSerializer):
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)
+    sender_email = serializers.EmailField(source='sender.email', read_only=True)
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    receiver_id = serializers.IntegerField(source='receiver.id', read_only=True)
+    receiver_email = serializers.EmailField(source='receiver.email', read_only=True)
+    receiver_username = serializers.CharField(source='receiver.username', read_only=True)
+
+    class Meta:
+        model = FriendRequest
+        fields = [
+            'id', 'sender_id', 'sender_email', 'sender_username',
+            'receiver_id', 'receiver_email', 'receiver_username',
+            'status', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'status', 'created_at', 'updated_at',
+                            'sender_id', 'sender_email', 'sender_username',
+                            'receiver_id', 'receiver_email', 'receiver_username']
+
+
+class SendFriendRequestSerializer(serializers.Serializer):
+    receiver_id = serializers.IntegerField(help_text='ID of the user to send a friend request to')
+
+    def validate_receiver_id(self, value):
+        if not CustomUser.objects.filter(pk=value).exists():
+            raise serializers.ValidationError('User not found.')
+        return value
+
+
+class FriendRequestActionSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=['accept', 'decline', 'block'],
+        help_text='"accept", "decline" or "block"',
+    )
+
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    """Minimal public info about a user — used in friend lists."""
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'first_name', 'email', 'avatar']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        try:
+            if obj.profile.avatar:
+                return request.build_absolute_uri(obj.profile.avatar.url) if request else obj.profile.avatar.url
+        except Exception:
+            pass
+        return None
+
+
+# ─── Rooms ────────────────────────────────────────────────────────────────────
+
+class RoomMembershipSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    invited_by_id = serializers.IntegerField(source='invited_by.id', read_only=True, allow_null=True)
+
+    class Meta:
+        model = RoomMembership
+        fields = [
+            'id', 'user_id', 'user_email', 'user_username',
+            'status', 'invited_by_id', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    owner_id = serializers.IntegerField(source='owner.id', read_only=True)
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
+    member_count = serializers.SerializerMethodField()
+    is_open = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Room
+        fields = [
+            'id', 'owner_id', 'owner_username', 'name', 'description',
+            'room_type', 'visibility', 'license_type',
+            'geo_lat', 'geo_lon', 'geo_radius_meters',
+            'active_from', 'active_until',
+            'is_active', 'is_open', 'member_count',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+
+    def get_member_count(self, obj):
+        return obj.memberships.filter(status='accepted').count()
+
+    def get_is_open(self, obj):
+        return obj.is_open()
+
+    def validate(self, attrs):
+        license_type = attrs.get('license_type', 'default')
+        if license_type == 'location':
+            if not all([attrs.get('geo_lat'), attrs.get('geo_lon'), attrs.get('geo_radius_meters')]):
+                raise serializers.ValidationError(
+                    'geo_lat, geo_lon and geo_radius_meters are required for location-restricted rooms.'
+                )
+        return attrs
+
+
+class RoomCreateSerializer(RoomSerializer):
+    class Meta(RoomSerializer.Meta):
+        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+
+
+class InviteToRoomSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(help_text='ID of the user to invite to the room')
+
+    def validate_user_id(self, value):
+        if not CustomUser.objects.filter(pk=value).exists():
+            raise serializers.ValidationError('User not found.')
+        return value
+
+
+class RoomMembershipActionSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=['accept', 'decline'],
+        help_text='"accept" or "decline" the invitation',
+    )

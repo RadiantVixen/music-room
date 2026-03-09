@@ -28,7 +28,7 @@ services:
     networks:
       - transcendence
     env_file:
-      - ./auth/.env
+      - .env
 
 networks:
   transcendence:
