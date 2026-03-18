@@ -12,6 +12,7 @@ import ProfileScreen from "../features/profile/screens/ProfileScreen";
 import EditProfile from "../features/profile/screens/EditProfileScreen";
 import CreateRoomScreen from "../features/rooms/screens/CreateRoomScreen";
 import RoomsListScreen from "../features/rooms/screens/RoomsListScreen";
+import RoomScreen from "../features/rooms/screens/RoomScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   CreateRoom: undefined;
   RoomsList: undefined;
+  Room: { roomId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,6 +53,7 @@ export default function RootNavigator() {
         {/* Rooms */}
         <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
         <Stack.Screen name="RoomsList" component={RoomsListScreen} />
+        <Stack.Screen name="Room" component={RoomScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

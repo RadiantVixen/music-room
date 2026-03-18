@@ -6,30 +6,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import FeaturedRoomCard from "../../home/components/FeaturedRoomCard";
 import App from "../../../../../App";
 import AppLayout from "../../../components/layout/AppLayout";
+import RoomsListHeader from "../components/RoomsListHeader";
 
 export default function JoinRoomScreen() {
   const navigation = useAppNavigation();
 
-//   const handleJoin = (room: any) => {
-//     navigation.navigate("Room", { roomId: room.id });
-//   };
+  const handleJoin = (room: any) => {
+    navigation.navigate("Room", { roomId: room.id })
+  };
 
   return (
-    // <AppLayout header={{ title: "Join a Room" }}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#181022" }}>
-        <View style={styles.container}>
+    <AppLayout header={<RoomsListHeader />}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={22} color="#fff" />
-          </TouchableOpacity>
-
-          <Text style={styles.title}>Join Room</Text>
-
-          <View style={{ width: 22 }} />
-        </View>
-
+      <View style={styles.container}>
         {/* Rooms list */}
         <FlatList
           data={liveRooms}
@@ -37,16 +26,16 @@ export default function JoinRoomScreen() {
           renderItem={({ item }) => (
             <FeaturedRoomCard
               room={item}
-              // onPress={() => handleJoin(item)}
+              onPress={() => handleJoin(item)}
             />
           )}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
         />
 
       </View>
-      </SafeAreaView>
-    // </AppLayout>
+
+    </AppLayout>
   );
 }
 const styles = StyleSheet.create({

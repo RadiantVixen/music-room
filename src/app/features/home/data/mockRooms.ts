@@ -12,6 +12,7 @@ export const mockTracks = [
     duration: 203,
     votes: 42,
     addedBy: currentUser,
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
   },
 
   {
@@ -26,6 +27,7 @@ export const mockTracks = [
       name: "Bob Smith",
       avatar: "https://i.pravatar.cc/101",
     },
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
   },
   {
     id: '3',
@@ -39,8 +41,8 @@ export const mockTracks = [
       name: "Jade Lee",
       avatar: "https://i.pravatar.cc/102",
     },
-  }
- 
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+  },
 ]
 export const liveRooms = [
   {
@@ -83,6 +85,8 @@ export const liveRooms = [
     name: "Chillhop Cafe",
     participantCount: "430",
     host: "Tom Taylor",
+    currentTrack: mockTracks[0],
+    genres: ["Lo-fi", "Chillhop"],
     coverImage:
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDEzghgtVTEw6GJF4Apgo4WRpWTW1Ild6HJYWtxYgCC7fkBgrkgru-1ajtcVil2BGKQSzeZKFjlrWGUZ5Pp5Vb6T3bi6g5r1Dh2ev0NUPu55DKF8ilWuQ8RVDWusA3ObJFHzeJR64enOqSowvG93JMMvBkIV8uOBwHU-KBHadAsKpXeH4kvPom8KhjKq88Bw-u91BpZzsONmv4N1vCFgD0Qu4d-MQ7KetniC1DZPRS4uKkWW47WtNyiNClkwCBB0SldkJJs89qpzak",
   },
