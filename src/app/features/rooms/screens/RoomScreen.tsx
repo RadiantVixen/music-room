@@ -9,6 +9,7 @@ import QueueList from "../components/QueueList"
 import { useAppRoute } from "../../../hooks/useAppRoute"
 import { liveRooms } from "../../home/data/mockRooms"
 import { useAudioPlayer } from "../../../utils/useAudioPlayer"
+import PlayerProgress from "../components/PlayerProgress"
 
 export default function RoomScreen() {
   const route = useAppRoute<"Room">()
@@ -24,7 +25,13 @@ export default function RoomScreen() {
   }
   const track = room.currentTrack
 
-  const { play, pause, isPlaying } = useAudioPlayer(track?.audioUrl)
+  const {
+    play,
+    pause,
+    isPlaying,
+    position,
+    duration
+  } = useAudioPlayer(track?.audioUrl)
   return (
     <AppLayout
       header={<RoomHeader roomName={room?.name || "Room"} />}
@@ -36,6 +43,11 @@ export default function RoomScreen() {
       >
 
         <NowPlayingCard  track={room.currentTrack}/>
+        
+        <PlayerProgress
+          position={position}
+          duration={duration}
+        />
 
         <PlayerControls
           isPlaying={isPlaying}

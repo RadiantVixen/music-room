@@ -5,25 +5,37 @@ export function useAudioPlayer(audioUrl?: string) {
   const [sound, setSound] = useState<Audio.Sound | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
+  const [position, setPosition] = useState(0)
+  const [duration, setDuration] = useState(1)
+
   async function play() {
     if (!audioUrl) return
 
-    const { sound } = await Audio.Sound.createAsync(
+    if (sound) {
+      await sound.playAsync()
+      setIsPlaying(true)
+      return
+    }
+
+    const { sound: newSound } = await Audio.Sound.createAsync(
       { uri: audioUrl },
-      { shouldPlay: true }
+      { shouldPlay: true },
+      onPlaybackStatusUpdate
     )
 
-    setSound(sound)
+    setSound(newSound)
     setIsPlaying(true)
+  }
+
+  function onPlaybackStatusUpdate(status: any) {
+    if (!status.isLoaded) return
+
+    setPosition(status.positionMillis)
+    setDuration(status.durationMillis || 1)
   }
 
   async function pause() {
     await sound?.pauseAsync()
-    setIsPlaying(false)
-  }
-
-  async function stop() {
-    await sound?.stopAsync()
     setIsPlaying(false)
   }
 
@@ -33,5 +45,5 @@ export function useAudioPlayer(audioUrl?: string) {
     }
   }, [sound])
 
-  return { play, pause, stop, isPlaying }
+  return { play, pause, isPlaying, position, duration }
 }
