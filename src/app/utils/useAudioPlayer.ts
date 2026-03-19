@@ -1,10 +1,12 @@
 import { Audio } from "expo-av"
 import { useEffect, useState } from "react"
 
-export function useAudioPlayer(audioUrl?: string) {
+export function useAudioPlayer(
+  audioUrl?: string,
+  options?: { onTrackEnd?: () => void }
+) {
   const [sound, setSound] = useState<Audio.Sound | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(1)
 
@@ -32,6 +34,12 @@ export function useAudioPlayer(audioUrl?: string) {
 
     setPosition(status.positionMillis)
     setDuration(status.durationMillis || 1)
+    setIsPlaying(status.isPlaying)
+
+    // 🔥 THIS IS THE KEY
+    if (status.didJustFinish) {
+      options?.onTrackEnd?.()
+    }
   }
 
   async function pause() {
@@ -45,5 +53,18 @@ export function useAudioPlayer(audioUrl?: string) {
     }
   }, [sound])
 
-  return { play, pause, isPlaying, position, duration }
+  async function seekTo(value: number) {
+      if (!sound) return
+  
+      const newPosition = value * duration
+        await sound.setPositionAsync(newPosition)
+    }
+  return {
+    play,
+    pause,
+    isPlaying,
+    position,
+    duration,
+    seekTo,
+  }
 }

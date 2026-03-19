@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet } from "react-native"
+import { View, Text, StyleSheet, PanResponder } from "react-native"
+import { useRef } from "react"
 
 export default function PlayerProgress({
   position,
   duration,
+  onSeek,
 }: any) {
   const progress = position / duration
+
+  const barWidth = useRef(0)
 
   function format(ms: number) {
     const totalSeconds = Math.floor(ms / 1000)
@@ -13,11 +17,34 @@ export default function PlayerProgress({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+
+    onPanResponderGrant: (evt) => {
+      handleSeek(evt.nativeEvent.locationX)
+    },
+
+    onPanResponderMove: (evt) => {
+      handleSeek(evt.nativeEvent.locationX)
+    },
+  })
+
+  function handleSeek(x: number) {
+    const ratio = Math.max(0, Math.min(1, x / barWidth.current))
+    onSeek(ratio)
+  }
+
   return (
     <View style={styles.container}>
       
       {/* Bar */}
-      <View style={styles.barBackground}>
+      <View
+        style={styles.barBackground}
+        onLayout={(e) => {
+          barWidth.current = e.nativeEvent.layout.width
+        }}
+        {...panResponder.panHandlers}
+      >
         <View
           style={[
             styles.barFill,
@@ -28,12 +55,8 @@ export default function PlayerProgress({
 
       {/* Time */}
       <View style={styles.timeRow}>
-        <Text style={styles.time}>
-          {format(position)}
-        </Text>
-        <Text style={styles.time}>
-          {format(duration)}
-        </Text>
+        <Text style={styles.time}>{format(position)}</Text>
+        <Text style={styles.time}>{format(duration)}</Text>
       </View>
 
     </View>
