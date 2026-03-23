@@ -219,31 +219,5 @@ class ActionLog(models.Model):
         return f"[{self.action}] user={self.user_id} @ {self.created_at}"
 
 
-# ─── Chat Access ──────────────────────────────────────────────────────────────
-
-class ChatAccess(models.Model):
-    """Granted by the chat micro-service; controls whether a user can access paid chat."""
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='chat_access')
-    enabled = models.BooleanField(default=False)
-    max_price = models.DecimalField(max_digits=10, decimal_places=2)
-    expires_at = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"ChatAccess for {self.user.email} — enabled={self.enabled}"
 
 
-# ─── Phone OTP ────────────────────────────────────────────────────────────────
-
-class PhoneOTP(models.Model):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='otps')
-    code = models.CharField(max_length=6)
-    phone = models.CharField(max_length=20)
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_used = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"OTP for {self.phone} — used={self.is_used}"

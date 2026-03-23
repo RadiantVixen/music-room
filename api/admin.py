@@ -6,7 +6,6 @@ from .models import (
     FriendRequest,
     Room, RoomMembership,
     ActionLog,
-    ChatAccess, PhoneOTP,
 )
 
 
@@ -76,11 +75,11 @@ class RoomAdmin(admin.ModelAdmin):
 
 @admin.register(RoomMembership)
 class RoomMembershipAdmin(admin.ModelAdmin):
-    list_display = ['room', 'user', 'status', 'invited_by', 'joined_at']
+    list_display = ['room', 'user', 'status', 'invited_by', 'created_at']
     list_filter = ['status']
     search_fields = ['room__name', 'user__email']
     raw_id_fields = ['room', 'user', 'invited_by']
-    readonly_fields = ['joined_at']
+    readonly_fields = ['created_at']
 
 
 # ─── ActionLog ────────────────────────────────────────────────────────────────
@@ -100,23 +99,4 @@ class ActionLogAdmin(admin.ModelAdmin):
         return False  # logs are immutable
 
 
-# ─── ChatAccess ───────────────────────────────────────────────────────────────
-
-@admin.register(ChatAccess)
-class ChatAccessAdmin(admin.ModelAdmin):
-    list_display = ['user', 'enabled', 'max_price', 'expires_at']
-    list_filter = ['enabled']
-    search_fields = ['user__email']
-    raw_id_fields = ['user']
-
-
-# ─── PhoneOTP ─────────────────────────────────────────────────────────────────
-
-@admin.register(PhoneOTP)
-class PhoneOTPAdmin(admin.ModelAdmin):
-    list_display = ['profile', 'phone', 'is_used', 'created_at']
-    list_filter = ['is_used']
-    search_fields = ['profile__user__email', 'phone']
-    raw_id_fields = ['profile']
-    readonly_fields = ['created_at']
 

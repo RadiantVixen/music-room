@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from .models import CustomUser, Profile, ChatAccess, PhoneOTP
+from .models import CustomUser, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
@@ -342,75 +342,3 @@ class LogoutView(APIView):
             return Response({"error": "Something went wrong."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# ─── Phone OTP views ──────────────────────────────────────────────────────────
-import random
-import string
-
-class SendPhoneOTPView(APIView):
-    """
-    POST /api/phone/send-otp/
-    Generates and stores a 6-digit OTP for the authenticated user's phone number.
-    In production integrate with an SMS gateway (Twilio, etc.).
-    """
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-
-    def post(self, request):
-        profile = request.user.profile
-        phone = request.data.get('phone') or profile.phone
-        if not phone:
-            return Response({'detail': 'No phone number on record. Please provide a phone number.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        # Update phone if a new one is provided
-        if phone != profile.phone:
-            profile.phone = phone
-            profile.phone_verified = False
-            profile.save(update_fields=['phone', 'phone_verified'])
-
-        # Generate a 6-digit OTP
-        code = ''.join(random.choices(string.digits, k=6))
-        PhoneOTP.objects.create(profile=profile, code=code, phone=phone)
-
-        # TODO: send SMS via gateway — for now just return the code (dev mode)
-        log_action(request, 'phone_otp_sent', f'Phone {phone}')
-        return Response({'detail': 'OTP sent successfully.', 'code': code if True else None})
-
-
-class VerifyPhoneOTPView(APIView):
-    """
-    POST /api/phone/verify-otp/
-    Body: { "code": "123456" }
-    Marks the user's phone as verified if the OTP is valid and not expired.
-    """
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-
-    def post(self, request):
-        from django.utils import timezone
-        from datetime import timedelta
-
-        code = request.data.get('code', '').strip()
-        if not code:
-            return Response({'detail': 'OTP code is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        profile = request.user.profile
-        expiry = timezone.now() - timedelta(minutes=10)
-
-        otp = (
-            PhoneOTP.objects
-            .filter(profile=profile, code=code, is_used=False, created_at__gte=expiry)
-            .order_by('-created_at')
-            .first()
-        )
-        if not otp:
-            return Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        otp.is_used = True
-        otp.save(update_fields=['is_used'])
-
-        profile.phone_verified = True
-        profile.save(update_fields=['phone_verified'])
-
-        log_action(request, 'phone_verified', f'Phone {profile.phone}')
-        return Response({'detail': 'Phone number verified successfully.'})

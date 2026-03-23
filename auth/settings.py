@@ -214,9 +214,6 @@ facebook_client_id = os.getenv("FACEBOOK_CLIENT_ID", "default_facebook_client_id
 facebook_client_secret = os.getenv("FACEBOOK_CLIENT_SECRET", "default_facebook_client_secret")
 
 
-CHAT_SERVICE_TOKEN = os.getenv("CHAT_SERVICE_TOKEN", "default_token_value")
-PAYMENT_SERVICE_TOKEN = os.getenv("PAYMENT_SERVICE_TOKEN", "default_token_value")
-
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'App Auth API',

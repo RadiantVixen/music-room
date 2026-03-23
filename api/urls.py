@@ -3,9 +3,6 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import  UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, DeepLinkRedirectView
 from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView
-from .views import SendPhoneOTPView, VerifyPhoneOTPView
-from .adminActions import UserViewSet, ProfileViewSet, CreateStaffView, StaffListView, StaffDetailView
-from .utils import grant_chat_access, get_chat_access, get_my_subscription, get_owner_phone, get_user_info
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
 from .extend_schema import token_refresh_schema
@@ -30,10 +27,6 @@ from .views_music_prefs import MusicPreferencesView
 # ─── Action Logs (admin) ──────────────────────────────────────────────────────
 from .views_logs import ActionLogListView
 
-router = DefaultRouter()
-router.register(r'users', UserViewSet, basename='user')
-router.register(r'profiles', ProfileViewSet)
-
 TokenRefreshView = token_refresh_schema(TokenRefreshView)
 
 
@@ -56,9 +49,6 @@ urlpatterns = [
     path('deeplink/<uidb64>/<token>/', DeepLinkRedirectView.as_view(), name='deeplink-redirect'),
     path('reset-password/<uidb64>/<token>/', ResetPasswordView.as_view(), name='reset-password'),
 
-    # ── Phone OTP verification ────────────────────────────────────────────────
-    path('phone/send-otp/', SendPhoneOTPView.as_view(), name='phone-send-otp'),
-    path('phone/verify-otp/', VerifyPhoneOTPView.as_view(), name='phone-verify-otp'),
 
     # ── Music preferences ─────────────────────────────────────────────────────
     path('music-preferences/', MusicPreferencesView.as_view(), name='music-preferences'),
@@ -85,18 +75,6 @@ urlpatterns = [
     path('rooms/<int:pk>/members/<int:user_id>/', KickMemberView.as_view(), name='room-kick'),
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
 
-    # ── Internal service endpoints ────────────────────────────────────────────
-    path('internal/chat-access/', grant_chat_access, name='grant-chat-access'),
-    path('internal/chat-access/check/', get_chat_access, name='get-chat-access'),
-    path('internal/subscription/', get_my_subscription, name='get-subscription'),
-    path('internal/user/', get_user_info, name='get-user-info'),
-    path('internal/owner-phone/', get_owner_phone, name='get-owner-phone'),
-
-    # ── Admin: user management (DRF ViewSets) ────────────────────────────────
-    path('admin/', include(router.urls)),
-    path('admin/staff/', CreateStaffView.as_view(), name='create-staff'),
-    path('admin/staff/list/', StaffListView.as_view(), name='staff-list'),
-    path('admin/staff/<int:pk>/', StaffDetailView.as_view(), name='staff-detail'),
 
     # ── Admin: action logs ────────────────────────────────────────────────────
     path('admin/logs/', ActionLogListView.as_view(), name='action-logs'),

@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema
 
 from .models import ActionLog
 from .permissions import IsStaffRoleUser
@@ -24,6 +25,12 @@ class ActionLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+class ActionLogListResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    offset = serializers.IntegerField()
+    limit = serializers.IntegerField()
+    results = ActionLogSerializer(many=True)
+
 
 class ActionLogListView(APIView):
     """
@@ -38,6 +45,11 @@ class ActionLogListView(APIView):
     permission_classes = [IsAuthenticated, IsStaffRoleUser]
     authentication_classes = [JWTAuthentication]
 
+    @extend_schema(
+        tags=['Admin'],
+        operation_id='admin_action_logs_list',
+        responses={200: ActionLogListResponseSerializer},
+    )
     def get(self, request):
         qs = ActionLog.objects.select_related('user')
 
