@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from .models import CustomUser, Profile, ChatAccess, PhoneOTP
+from .models import CustomUser, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
@@ -30,6 +30,7 @@ from .extend_schema import (
     change_password_schema, forgot_password_schema,
     deeplink_redirect_schema, reset_password_schema,
 )
+from .logging_utils import log_action
 
 User = get_user_model()
 
@@ -58,6 +59,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [LoginRateThrottle]
 
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            # Log successful login — user is resolved via the serializer
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                email = request.data.get('email', '')
+                user = User.objects.get(email=email)
+                log_action(request, 'login', f'User {user.id} logged in')
+            except Exception:
+                pass
+        return response
+
 
 @register_schema
 class UserRegistrationView(APIView):
@@ -67,7 +82,8 @@ class UserRegistrationView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        user = serializer.save()
+        log_action(request, 'register', f'New user id={user.id}')
         return Response(
             {'message': 'User registered successfully.'},
             status=status.HTTP_201_CREATED,
@@ -317,10 +333,12 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
 
+            log_action(request, 'logout', f'User {request.user.id} logged out')
             return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
 
         except TokenError:
             return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({"error": "Something went wrong."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
