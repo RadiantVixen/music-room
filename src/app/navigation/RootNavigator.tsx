@@ -13,6 +13,7 @@ import EditProfile from "../features/profile/screens/EditProfileScreen";
 import CreateRoomScreen from "../features/rooms/screens/CreateRoomScreen";
 import RoomsListScreen from "../features/rooms/screens/RoomsListScreen";
 import RoomScreen from "../features/rooms/screens/RoomScreen";
+import { useAuthStore } from "../store/authStore";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -33,28 +34,30 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-        <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-        {/* Home */}
-        <Stack.Screen name="Home" component={HomeScreen} />
-
-        {/* Profile */}
-        <Stack.Screen name="Profile" component={ProfileScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfile} />
-
-        {/* Rooms */}
-        <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
-        <Stack.Screen name="RoomsList" component={RoomsListScreen} />
-        <Stack.Screen name="Room" component={RoomScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
+return (
+  <NavigationContainer>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {!isAuthenticated ? (
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Signup" component={SignupScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+        </>
+      ) : (
+        <>
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfile} />
+          <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
+          <Stack.Screen name="RoomsList" component={RoomsListScreen} />
+          <Stack.Screen name="Room" component={RoomScreen} />
+        </>
+      )}
+    </Stack.Navigator>
+  </NavigationContainer>
+);
 }

@@ -17,6 +17,8 @@ import AuthInput from "../components/AuthInput";
 import Button from "../../../components/Button";
 import SocialButton from "../../../components/SocialButton";
 
+import { useAuthStore } from "../../../store/authStore";
+
 export default function LoginScreen() {
   type NavigationProp = NativeStackNavigationProp<
     RootStackParamList,
@@ -25,14 +27,24 @@ export default function LoginScreen() {
 
   const navigation = useNavigation<NavigationProp>();
 
+  const login = useAuthStore((state) => state.login);
+  const isLoading = useAuthStore((state) => state.isLoading);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
-    console.log("Login:", { email, password });
+  const handleLogin = async () => {
+  try {
+    await login({
+      email,
+      password,
+    });
 
-    navigation.replace("Home");// replace instead of navigate to prevent going back to login screen
-  };
+    navigation.replace("Home");
+  } catch (error: any) {
+    console.log(error?.response?.data);
+  }
+};
 
   return (
     <AuthLayout showBackButton={false} showDecorations={false}>

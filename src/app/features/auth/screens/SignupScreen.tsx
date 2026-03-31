@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -15,21 +16,40 @@ import Button from "../../../components/Button";
 import SocialButton from "../../../components/SocialButton";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../navigation/RootNavigator";
+
+import { useAuthStore } from "../../../store/authStore";
+
 export default function SignupScreen() {
   type NavigationProp = NativeStackNavigationProp<
     RootStackParamList,
     "Signup"
     >;
 
-    const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<NavigationProp>();
+  const signup = useAuthStore((state) => state.signup);
+  const isLoading = useAuthStore((state) => state.isLoading);
 
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSignup = () => {
-    navigation.navigate("VerifyEmail", { type: "signup" });
-  };
+  const handleSignup = async () => {
+  try {
+    await signup({
+      full_name: fullName,
+      email,
+      password,
+      confirm_password: confirmPassword,
+    });
+    Alert.alert("Success", "Account created successfully");
+
+    navigation.navigate("Login");
+  } catch (error: any) {
+    console.log(error?.response?.data);
+    Alert.alert("Signup failed", JSON.stringify(error?.response?.data || {}));
+  }
+};
 
   return (
     <AuthLayout showDecorations={false}>
@@ -49,6 +69,12 @@ export default function SignupScreen() {
 
       {/* Form */}
       <View style={styles.form}>
+          <Text style={styles.label}>Full Name</Text>
+        <AuthInput
+          placeholder="John Doe"
+          value={fullName}
+          onChangeText={setFullName}
+        />
 
         <Text style={styles.label}>Email Address</Text>
         <AuthInput
