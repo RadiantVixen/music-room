@@ -48,10 +48,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   login: async (payload) => {
+    
     set({ isLoading: true });
 
     try {
+      console.log("Attempting login with payload:", payload);
       const data = await loginRequest(payload);
+      console.log("Login response:", data);
 
       const accessToken = data.access;
       const refreshToken = data.refresh;

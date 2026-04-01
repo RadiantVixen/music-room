@@ -35,6 +35,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
   try {
+    console.log("Login button pressed with email:", email);
     await login({
       email,
       password,

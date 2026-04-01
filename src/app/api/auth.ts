@@ -18,7 +18,8 @@ export const signupRequest = async (payload: SignupPayload) => {
 };
 
 export const loginRequest = async (payload: LoginPayload) => {
-  const response = await api.post("/login/", payload);
+  const response = await api.post("/token/", payload);
+  console.log("Login response:", response.data);
   return response.data;
 };
 
