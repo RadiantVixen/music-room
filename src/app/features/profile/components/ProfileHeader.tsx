@@ -1,8 +1,11 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native"
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
+import { useAuthStore } from "../../../store/authStore";
 
 export default function ProfileHeader() {
   const navigation = useAppNavigation();
+  const user = useAuthStore((state) => state.user);
+
   return (
     <View style={styles.container}>
 
@@ -11,9 +14,9 @@ export default function ProfileHeader() {
         style={styles.avatar}
       />
 
-      <Text style={styles.name}>Alex Rivera</Text>
+      <Text style={styles.name}>{user?.first_name}</Text>
 
-      <Text style={styles.username}>@arivera_vibes</Text>
+      <Text style={styles.username}>{user?.username}</Text>
 
       <View style={styles.buttons}>
         <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate("EditProfile")}>

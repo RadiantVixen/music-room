@@ -9,9 +9,12 @@ import {
 } from "../api/auth";
 
 type User = {
-  id?: number;
-  full_name?: string;
-  email?: string;
+  id: number;
+  username: string;
+  first_name: string;
+  email: string;
+  role?: string;
+  profile?: any | null;
 };
 
 type AuthState = {
