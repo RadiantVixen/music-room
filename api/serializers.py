@@ -106,13 +106,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.username = f"{user.id}{safe_name}"
         user.save(update_fields=['username'])
 
-        # Save phone to profile
-        try:
-            profile = user.profile
-            profile.phone = phone
-            profile.save(update_fields=['phone'])
-        except Exception:
-            pass  # Profile may not exist yet in all edge cases
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.phone = phone
+        profile.save(update_fields=['phone'])
 
         return user
 

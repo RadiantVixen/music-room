@@ -208,10 +208,26 @@ CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split('
 CORS_ALLOW_CREDENTIALS = True
 
 
-google_client_id = os.getenv("GOOGLE_CLIENT_ID", "default_google_client_id")
-google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "default_google_client_secret")
-facebook_client_id = os.getenv("FACEBOOK_CLIENT_ID", "default_facebook_client_id")
-facebook_client_secret = os.getenv("FACEBOOK_CLIENT_SECRET", "default_facebook_client_secret")
+google_client_id = (
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    or os.getenv("GOOGLE_CLIENT_ID")
+    or ""
+)
+google_client_secret = (
+    os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+    or os.getenv("GOOGLE_CLIENT_SECRET")
+    or ""
+)
+facebook_client_id = (
+    os.getenv("FACEBOOK_OAUTH_CLIENT_ID")
+    or os.getenv("FACEBOOK_CLIENT_ID")
+    or ""
+)
+facebook_client_secret = (
+    os.getenv("FACEBOOK_OAUTH_CLIENT_SECRET")
+    or os.getenv("FACEBOOK_CLIENT_SECRET")
+    or ""
+)
 
 
 

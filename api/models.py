@@ -219,5 +219,16 @@ class ActionLog(models.Model):
         return f"[{self.action}] user={self.user_id} @ {self.created_at}"
 
 
+@receiver(post_save, sender=CustomUser)
+def ensure_user_profile(sender, instance, created, **kwargs):
+    if created:
+        Profile.objects.get_or_create(user=instance)
+
+
+@receiver(post_save, sender=CustomUser)
+def save_user_profile(sender, instance, **kwargs):
+    Profile.objects.get_or_create(user=instance)
+
+
 
 

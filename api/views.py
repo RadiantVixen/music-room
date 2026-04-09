@@ -2,8 +2,9 @@ from .permissions import IsChatService
 from rest_framework import permissions, status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.http import HttpResponse
+from django.conf import settings
 from .models import CustomUser, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
@@ -18,7 +19,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.core.mail import EmailMultiAlternatives
 from django.urls import reverse
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -31,6 +32,7 @@ from .extend_schema import (
     deeplink_redirect_schema, reset_password_schema,
 )
 from .logging_utils import log_action
+from .permissions import IsStaffRoleUser
 
 User = get_user_model()
 
@@ -83,9 +85,18 @@ class UserRegistrationView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        user_payload = UserSerializer(user, context={'request': request}).data
         log_action(request, 'register', f'New user id={user.id}')
         return Response(
-            {'message': 'User registered successfully.'},
+            {
+                'message': 'User registered and logged in successfully.',
+                'data': {
+                    'user': user_payload,
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                },
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -96,7 +107,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_object(self):
         # select_related avoids a second DB query for the profile on every GET /me/
@@ -108,6 +119,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()
+        user_payload = UserSerializer(user, context={'request': request}).data
 
         auth_header = request.headers.get('Authorization', '')
         token = auth_header.removeprefix('Bearer ').strip() if auth_header.startswith('Bearer ') else None
@@ -124,7 +136,13 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 pass  # already blacklisted
 
         user.delete()
-        return Response({'detail': 'Account deleted successfully.'}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                'message': 'Account deleted successfully.',
+                'data': {'user': user_payload},
+            },
+            status=status.HTTP_200_OK,
+        )
 
 @change_password_schema
 class ChangePasswordView(APIView):
@@ -136,11 +154,21 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-        if not user.check_password(serializer.validated_data['old_password']):
-            return Response({'old_password': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
 
-        user.set_password(serializer.validated_data['new_password'])
-        user.save()
+        if not user.check_password(old_password):
+            return Response({'errors': {'old_password': 'Wrong password.'}}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+
+        verified_user = authenticate(request=request, email=user.email, password=new_password)
+        if verified_user is None:
+            return Response(
+                {'error': 'Password updated but verification failed. Please contact support.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         # Blacklist the refresh token sent in the request body
         # (mobile apps send it in the body, not a cookie)
@@ -151,7 +179,16 @@ class ChangePasswordView(APIView):
             except TokenError:
                 pass  # already expired — fine, password is changed anyway
 
-        return Response({'detail': 'Password updated. Please log in again.'}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                'message': 'Password updated successfully.',
+                'data': {
+                    'user': UserSerializer(user, context={'request': request}).data,
+                    'relogin_required': True,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @forgot_password_schema
@@ -164,13 +201,25 @@ class ForgotPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
 
+        if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+            return Response(
+                {
+                    'error': 'Email service is not configured.',
+                    'details': 'Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in environment variables.',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         # SECURITY: always return 200 regardless of whether the email exists
         # — prevents account enumeration attacks
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response(
-                {'message': 'If an account with that email exists, a reset link has been sent.'},
+                {
+                    'message': 'If an account with that email exists, a reset link has been sent.',
+                    'data': None,
+                },
                 status=status.HTTP_200_OK,
             )
 
@@ -205,7 +254,10 @@ class ForgotPasswordView(APIView):
         msg.send()
 
         return Response(
-            {'message': 'If an account with that email exists, a reset link has been sent.'},
+            {
+                'message': 'If an account with that email exists, a reset link has been sent.',
+                'data': {'email': email},
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -334,11 +386,60 @@ class LogoutView(APIView):
             token.blacklist()
 
             log_action(request, 'logout', f'User {request.user.id} logged out')
-            return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    'message': 'Successfully logged out.',
+                    'data': {'user_id': request.user.id},
+                },
+                status=status.HTTP_200_OK,
+            )
 
         except TokenError:
             return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({"error": "Something went wrong."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated, IsStaffRoleUser]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        users = CustomUser.objects.select_related('profile').all().order_by('id')
+        data = UserSerializer(users, many=True, context={'request': request}).data
+        return Response({'count': len(data), 'data': data}, status=status.HTTP_200_OK)
+
+
+class UserAdminDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsStaffRoleUser]
+    authentication_classes = [JWTAuthentication]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def _get_user(self, pk):
+        return generics.get_object_or_404(CustomUser.objects.select_related('profile'), pk=pk)
+
+    def get(self, request, pk):
+        user = self._get_user(pk)
+        data = UserSerializer(user, context={'request': request}).data
+        return Response({'data': data}, status=status.HTTP_200_OK)
+
+    def patch(self, request, pk):
+        user = self._get_user(pk)
+        serializer = UserSerializer(user, data=request.data, partial=True, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'data': serializer.data}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+        user = self._get_user(pk)
+        user_data = UserSerializer(user, context={'request': request}).data
+        user.delete()
+        return Response(
+            {
+                'message': 'User deleted successfully.',
+                'data': user_data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 

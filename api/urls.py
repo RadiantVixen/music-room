@@ -2,7 +2,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import  UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, DeepLinkRedirectView
-from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView
+from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
 from .extend_schema import token_refresh_schema
@@ -63,6 +63,8 @@ urlpatterns = [
 
     # ── User search ───────────────────────────────────────────────────────────
     path('users/search/', UserSearchView.as_view(), name='user-search'),
+    path('users/', UserListView.as_view(), name='user-list'),
+    path('users/<int:pk>/', UserAdminDetailView.as_view(), name='user-detail-admin'),
 
     # ── Rooms ─────────────────────────────────────────────────────────────────
     path('rooms/', RoomListCreateView.as_view(), name='room-list-create'),
