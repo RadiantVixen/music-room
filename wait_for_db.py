@@ -16,3 +16,4 @@ while True:
     except psycopg2.OperationalError:
         print("⏳ Waiting for database...")
         time.sleep(2)
+
