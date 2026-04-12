@@ -18,7 +18,7 @@ from .serializers import (
     ChangePasswordSerializer, ForgotPasswordSerializer,
     ResetPasswordSerializer, LogoutSerializer,
     TokenRefreshSerializer, SocialLoginSerializer,
-    UserSerializer,
+    UserSerializer, VerifyResetCodeSerializer,
 )
 
 
@@ -98,7 +98,7 @@ register_schema = extend_schema(
     examples=[
         OpenApiExample(
             'Register example',
-            value={'username': 'john', 'email': 'john@example.com', 'password': 'strongpass123'},
+            value={'full_name': 'john', 'email': 'john@example.com', 'password': 'Strongpass123@', 'confirm_password': 'Strongpass123@'},
             request_only=True,
         )
     ],
@@ -212,7 +212,19 @@ reset_password_schema = extend_schema(
     },
 )
 
-
+verify_reset_code_schema = extend_schema(
+    tags=['Password'],
+    summary='Verify password reset code',
+    description=(
+        'Verify the 6-digit code sent to the user\'s email for password reset.\n\n'
+        'Returns a `reset_token` if the code is valid, which can be used to reset the password without needing the uidb64/token pair from the email link.\n'    
+    ),
+    request=VerifyResetCodeSerializer,
+    responses={
+        200: OpenApiResponse(description='Code verified, reset_token returned'),
+        400: OpenApiResponse(description='Invalid code, email, or code expired/used'),
+    },
+)
 # ─── OAuth ───────────────────────────────────────────────────────────────────
 
 social_login_schema = extend_schema(

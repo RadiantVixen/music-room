@@ -203,6 +203,7 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # CORS — restrict to explicit origins (never use CORS_ALLOW_ALL_ORIGINS=True in production)
 # Default allows both 8080 (nginx-served Flutter web) and 8081 (local dev)
+CORS_ALLOW_ALL_ORIGINS = True
 _cors_defaults = 'http://localhost:8080,http://localhost:8081,http://localhost:9090'
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split(',')
 CORS_ALLOW_CREDENTIALS = True

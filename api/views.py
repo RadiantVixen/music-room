@@ -9,7 +9,7 @@ from .models import CustomUser, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
-    LogoutSerializer, TokenRefreshSerializer, ForgotPasswordSerializer,
+    LogoutSerializer, TokenRefreshSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
     ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
@@ -29,14 +29,19 @@ import os
 from .extend_schema import (
     login_schema, logout_schema, register_schema, profile_schema,
     change_password_schema, forgot_password_schema,
-    deeplink_redirect_schema, reset_password_schema,
+    deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema,
 )
 from .logging_utils import log_action
 from .permissions import IsStaffRoleUser
-
+import random
+from datetime import timedelta
+from django.utils import timezone
+from .models import CustomUser, Profile, PasswordResetCode
+from .serializers import VerifyResetCodeSerializer
 User = get_user_model()
 
-
+def generate_reset_code():
+    return f"{random.randint(0, 999999):06d}"
 # ─── Custom throttle scopes ───────────────────────────────────────────────────
 class LoginRateThrottle(AnonRateThrottle):
     scope = 'login'
@@ -190,7 +195,6 @@ class ChangePasswordView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
 @forgot_password_schema
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
@@ -199,7 +203,7 @@ class ForgotPasswordView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
+        email = serializer.validated_data['email'].strip().lower()
 
         if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
             return Response(
@@ -210,40 +214,52 @@ class ForgotPasswordView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        # SECURITY: always return 200 regardless of whether the email exists
-        # — prevents account enumeration attacks
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response(
                 {
-                    'message': 'If an account with that email exists, a reset link has been sent.',
+                    'message': 'If an account with that email exists, a reset code has been sent.',
                     'data': None,
                 },
                 status=status.HTTP_200_OK,
             )
 
-        token = default_token_generator.make_token(user)
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        reset_link = request.build_absolute_uri(
-            reverse('deeplink-redirect', args=[uid, token])
+        PasswordResetCode.objects.filter(
+            user=user,
+            is_used=False,
+        ).update(is_used=True, used_at=timezone.now())
+
+        code = generate_reset_code()
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        PasswordResetCode.objects.create(
+            user=user,
+            email=email,
+            code=code,
+            expires_at=expires_at,
         )
 
-        subject = 'Reset Your Password'
+        subject = 'Your Password Reset Code'
         from_email = os.getenv('EMAIL_HOST_USER')
         to = [email]
-        text_content = f'Click the link below to reset your password:\n{reset_link}'
+
+        text_content = (
+            f'Your password reset code is: {code}\n\n'
+            f'This code expires in 10 minutes.\n'
+            f'If you did not request this, ignore this email.'
+        )
+
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
             <h2>Password Reset</h2>
             <p>Hello {user.email},</p>
-            <p>You requested a password reset. Click the button below:</p>
-            <a href="{reset_link}"
-               style="background-color: #007bff; padding: 10px 20px;
-                      color: white; text-decoration: none; border-radius: 5px;">
-                Reset Password
-            </a>
+            <p>Your password reset code is:</p>
+            <div style="font-size: 28px; font-weight: bold; letter-spacing: 6px; margin: 20px 0;">
+                {code}
+            </div>
+            <p>This code expires in <strong>10 minutes</strong>.</p>
             <p>If you didn't request this, ignore this email.</p>
         </body>
         </html>
@@ -255,122 +271,195 @@ class ForgotPasswordView(APIView):
 
         return Response(
             {
-                'message': 'If an account with that email exists, a reset link has been sent.',
+                'message': 'If an account with that email exists, a reset code has been sent.',
                 'data': {'email': email},
             },
             status=status.HTTP_200_OK,
         )
 
 
-@deeplink_redirect_schema
-class DeepLinkRedirectView(APIView):
-    def get(self, request, uidb64, token):
-        reset_url = f"/api/reset-password/{uidb64}/{token}/"
-        deep_link = f"myapp://ResetPassword/{uidb64}/{token}"
+@verify_reset_code_schema
+class VerifyResetCodeView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
-        html = f"""
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Reset Password</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    background: #f7f7f7;
-                }}
-                .card {{
-                    background: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                    width: 90%;
-                    max-width: 350px;
-                    text-align: center;
-                }}
-                input {{
-                    width: 100%;
-                    padding: 10px;
-                    margin-top: 10px;
-                    border: 1px solid #ccc;
-                    border-radius: 5px;
-                }}
-                button {{
-                    width: 100%;
-                    margin-top: 15px;
-                    padding: 10px;
-                    background-color: #007bff;
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    font-size: 16px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h3>Reset Your Password</h3>
+    def post(self, request):
+        serializer = VerifyResetCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-                <p>If you're on your phone, use this:</p>
-                <a href="{deep_link}" class="button" 
-                   style="display:block;background:#007bff;color:white;padding:10px;border-radius:5px;margin-bottom:15px;">
-                    Open in App
-                </a>
+        email = serializer.validated_data['email'].strip().lower()
+        code = serializer.validated_data['code']
 
-                <p style="color:#666;">Or reset manually:</p>
+        latest_entry = (
+            PasswordResetCode.objects
+            .filter(email=email, is_used=False)
+            .order_by('-created_at')
+            .first()
+        )
 
-                <form method="POST" action="{reset_url}">
-                    <input name="password" type="password" placeholder="New password" required>
-                    <input name="confirm_password" type="password" placeholder="Confirm password" required>
-                    <button type="submit">Submit</button>
-                </form>
-            </div>
-        </body>
-        </html>
-        """
+        if not latest_entry:
+            return Response(
+                {'error': 'Invalid code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        return HttpResponse(html)
+        if latest_entry.is_expired():
+            return Response(
+                {'error': 'Code expired.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if latest_entry.attempts >= 5:
+            return Response(
+                {'error': 'Too many attempts. Please request a new code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if latest_entry.code != code:
+            latest_entry.attempts += 1
+            latest_entry.save(update_fields=['attempts'])
+            return Response(
+                {'error': 'Invalid code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        latest_entry.is_verified = True
+        latest_entry.verified_at = timezone.now()
+        latest_entry.save(update_fields=['is_verified', 'verified_at'])
+
+        return Response(
+            {
+                'message': 'Code verified successfully.',
+                'data': {
+                    'reset_token': str(latest_entry.reset_token),
+                    'email': email,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+# @deeplink_redirect_schema
+# class DeepLinkRedirectView(APIView):
+#     def get(self, request, uidb64, token):
+#         reset_url = f"/api/reset-password/{uidb64}/{token}/"
+#         deep_link = f"myapp://ResetPassword/{uidb64}/{token}"
+
+#         html = f"""
+#         <html>
+#         <head>
+#             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+#             <title>Reset Password</title>
+#             <style>
+#                 body {{
+#                     font-family: Arial, sans-serif;
+#                     display: flex;
+#                     justify-content: center;
+#                     align-items: center;
+#                     height: 100vh;
+#                     background: #f7f7f7;
+#                 }}
+#                 .card {{
+#                     background: white;
+#                     padding: 20px;
+#                     border-radius: 10px;
+#                     box-shadow: 0 0 10px rgba(0,0,0,0.1);
+#                     width: 90%;
+#                     max-width: 350px;
+#                     text-align: center;
+#                 }}
+#                 input {{
+#                     width: 100%;
+#                     padding: 10px;
+#                     margin-top: 10px;
+#                     border: 1px solid #ccc;
+#                     border-radius: 5px;
+#                 }}
+#                 button {{
+#                     width: 100%;
+#                     margin-top: 15px;
+#                     padding: 10px;
+#                     background-color: #007bff;
+#                     color: white;
+#                     border: none;
+#                     border-radius: 5px;
+#                     cursor: pointer;
+#                     font-size: 16px;
+#                 }}
+#             </style>
+#         </head>
+#         <body>
+#             <div class="card">
+#                 <h3>Reset Your Password</h3>
+
+#                 <p>If you're on your phone, use this:</p>
+#                 <a href="{deep_link}" class="button" 
+#                    style="display:block;background:#007bff;color:white;padding:10px;border-radius:5px;margin-bottom:15px;">
+#                     Open in App
+#                 </a>
+
+#                 <p style="color:#666;">Or reset manually:</p>
+
+#                 <form method="POST" action="{reset_url}">
+#                     <input name="password" type="password" placeholder="New password" required>
+#                     <input name="confirm_password" type="password" placeholder="Confirm password" required>
+#                     <button type="submit">Submit</button>
+#                 </form>
+#             </div>
+#         </body>
+#         </html>
+#         """
+
+#         return HttpResponse(html)
 
 
 
 @reset_password_schema
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
-    def post(self, request, uidb64, token):
-        # 1. Decode user
-        try:
-            uid = urlsafe_base64_decode(uidb64).decode()
-            user = User.objects.get(pk=uid)
-        except (User.DoesNotExist, ValueError, TypeError, OverflowError):
-            return Response({'error': 'Invalid link.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 2. Validate token
-        if not default_token_generator.check_token(user, token):
-            return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 3. Validate passwords via serializer
+    def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # 4. Set new password
-        user.set_password(serializer.validated_data['password'])
-        user.save()
+        reset_token = serializer.validated_data['reset_token']
+        password = serializer.validated_data['password']
 
-        html = """
-        <html>
-        <body style="font-family: Arial; padding: 40px;">
-            <h2>Password reset successful 🎉</h2>
-            <p>Your password has been updated. You can now go back to the app and log in.</p>
-        </body>
-        </html>
-        """
-        return HttpResponse(html)
+        reset_entry = (
+            PasswordResetCode.objects
+            .filter(
+                reset_token=reset_token,
+                is_used=False,
+                is_verified=True,
+            )
+            .select_related('user')
+            .first()
+        )
 
+        if not reset_entry:
+            return Response(
+                {'error': 'Invalid reset session.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if reset_entry.is_expired():
+            return Response(
+                {'error': 'Reset session expired. Please request a new code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = reset_entry.user
+        user.set_password(password)
+        user.save(update_fields=['password'])
+
+        reset_entry.is_used = True
+        reset_entry.used_at = timezone.now()
+        reset_entry.save(update_fields=['is_used', 'used_at'])
+
+        return Response(
+            {'message': 'Password reset successfully.'},
+            status=status.HTTP_200_OK,
+        )
 @logout_schema
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]

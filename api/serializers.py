@@ -55,10 +55,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text='Your full name (used to generate username).',
     )
-    phone = serializers.CharField(
-        write_only=True,
-        help_text='Your phone number (required).',
-    )
+    # phone = serializers.CharField(
+    #     write_only=True,
+    #     help_text='Your phone number (required).',
+    # )
     password = serializers.CharField(
         write_only=True,
         style={'input_type': 'password'},
@@ -72,7 +72,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['full_name', 'phone', 'email', 'password', 'confirm_password']
+        fields = ['full_name', 'email', 'password', 'confirm_password']
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value).exists():
@@ -89,7 +89,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         full_name = validated_data.pop('full_name')
-        phone = validated_data.pop('phone', '')
+        # phone = validated_data.pop('phone', '')
         validated_data.pop('confirm_password', None)
         email = validated_data['email']
 
@@ -107,8 +107,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save(update_fields=['username'])
 
         profile, _ = Profile.objects.get_or_create(user=user)
-        profile.phone = phone
-        profile.save(update_fields=['phone'])
+        # profile.phone = phone
+        # profile.save(update_fields=['phone'])
 
         return user
 
@@ -124,12 +124,25 @@ class TokenRefreshSerializer(serializers.Serializer):
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
-    """Send password reset email."""
     email = serializers.EmailField(help_text='The email address linked to your account')
 
 
+class VerifyResetCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField(help_text='The email address linked to your account')
+    code = serializers.CharField(
+        min_length=6,
+        max_length=6,
+        help_text='6-digit reset code sent by email',
+    )
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('Code must contain only digits.')
+        return value
+
+
 class ResetPasswordSerializer(serializers.Serializer):
-    """Reset password using the link from the email."""
+    reset_token = serializers.UUIDField(help_text='Temporary reset token returned after code verification')
     password = serializers.CharField(
         write_only=True,
         style={'input_type': 'password'},
@@ -148,7 +161,6 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
         return attrs
-
 
 class UpdateProfileSerializer(serializers.Serializer):
     """Patch the authenticated user's profile. All fields optional."""

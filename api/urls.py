@@ -1,8 +1,9 @@
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import  UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, DeepLinkRedirectView
+
 from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
+from .views import UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, VerifyResetCodeView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
 from .extend_schema import token_refresh_schema
@@ -42,12 +43,13 @@ urlpatterns = [
     path('me/', UserDetailView.as_view(), name='user-detail'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('oauth/', SocialLoginView.as_view()),
-    path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
+
     path('logout/', LogoutView.as_view(), name='logout'),
 
     # ── Password reset deeplink ───────────────────────────────────────────────
-    path('deeplink/<uidb64>/<token>/', DeepLinkRedirectView.as_view(), name='deeplink-redirect'),
-    path('reset-password/<uidb64>/<token>/', ResetPasswordView.as_view(), name='reset-password'),
+    path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
+    path('verify-reset-code/', VerifyResetCodeView.as_view(), name='verify-reset-code'),
+    path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
 
 
     # ── Music preferences ─────────────────────────────────────────────────────
