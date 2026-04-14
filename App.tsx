@@ -5,13 +5,13 @@ import SplashScreen from "./src/app/features/auth/screens/SplashScreen";
 
 export default function App() {
   const restoreSession = useAuthStore((state) => state.restoreSession);
-  const isLoading = useAuthStore((state) => state.isLoading);
+  const isBootstrapping = useAuthStore((state) => state.isBootstrapping);
 
   useEffect(() => {
     restoreSession();
   }, []);
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return <SplashScreen />; // 👈 instead of null
   }
 

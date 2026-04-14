@@ -1,4 +1,4 @@
-import { ScrollView, Text } from "react-native"
+import { ScrollView } from "react-native"
 import AppLayout from "../../../components/layout/AppLayout"
 
 import ProfileHeader from "../components/ProfileHeader"
@@ -17,8 +17,8 @@ export default function ProfileScreen() {
     <AppLayout header={<ProfileHeaderNav />}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <ProfileHeader />
-        <ProfileStats />
-        <MusicPreferences />
+        <ProfileStats stats={user?.stats} />
+        <MusicPreferences genres={user?.music_preferences?.favorite_genres || []} />
         <ProfileSettings />
       </ScrollView>
     </AppLayout>

@@ -1,11 +1,31 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuthStore } from "../../../store/authStore";
+import { useAppNavigation } from "../../../hooks/useAppNavigation";
 
 export default function ProfileSettings() {
+  const logout = useAuthStore((state) => state.logout);
+  const navigation = useAppNavigation();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Log out",
+      "Are you sure you want to log out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log Out",
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      
-      {/* ACCOUNT */}
       <Text style={styles.sectionTitle}>ACCOUNT</Text>
 
       <View style={styles.card}>
@@ -13,14 +33,7 @@ export default function ProfileSettings() {
           icon="person-outline"
           title="Personal Info"
           subtitle="Email, name, birthday"
-        />
-
-        <Divider />
-
-        <SettingItem
-          icon="notifications-outline"
-          title="Notifications"
-          subtitle="Push, email, SMS"
+          onPress={() => navigation.navigate("EditProfile")}
         />
 
         <Divider />
@@ -29,10 +42,19 @@ export default function ProfileSettings() {
           icon="shield-checkmark-outline"
           title="Security"
           subtitle="Password, 2FA, devices"
+          onPress={() => navigation.navigate("ChangePassword" as never)}
+        />
+
+        <Divider />
+
+        <SettingItem
+          icon="people-outline"
+          title="Friends"
+          subtitle="Add, block, manage"
+          onPress={() => navigation.navigate("FriendsList" as never)}
         />
       </View>
 
-      {/* MUSIC SETTINGS */}
       <Text style={styles.sectionTitle}>MUSIC SETTINGS</Text>
 
       <View style={styles.card}>
@@ -51,20 +73,29 @@ export default function ProfileSettings() {
         />
       </View>
 
-      {/* LOGOUT */}
-      <TouchableOpacity style={styles.logout}>
+      <TouchableOpacity style={styles.logout} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color="#ff5a5f" />
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
 
       <Text style={styles.version}>Version 2.4.0 (Build 823)</Text>
     </View>
-  )
+  );
 }
 
-function SettingItem({ icon, title, subtitle }: any) {
+function SettingItem({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: any;
+  title: string;
+  subtitle: string;
+  onPress?: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.item}>
+    <TouchableOpacity style={styles.item} onPress={onPress} disabled={!onPress}>
       <View style={styles.left}>
         <View style={styles.iconBox}>
           <Ionicons name={icon} size={18} color="#9956f5" />
@@ -78,13 +109,14 @@ function SettingItem({ icon, title, subtitle }: any) {
 
       <Ionicons name="chevron-forward" size={18} color="#888" />
     </TouchableOpacity>
-  )
+  );
 }
-function Divider() {
-  return <View style={styles.divider} />
-}
-const styles = StyleSheet.create({
 
+function Divider() {
+  return <View style={styles.divider} />;
+}
+
+const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     marginTop: 30,
@@ -163,4 +195,4 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 12,
   },
-})
+});

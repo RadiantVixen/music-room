@@ -1,10 +1,10 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 
-export default function SaveProfileButton() {
+export default function SaveProfileButton({ onPress }: { onPress: () => void }) {
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={onPress}>
         <Ionicons name="checkmark-circle" size={22} color="#fff" />
         <Text style={styles.text}>Save Changes</Text>
       </TouchableOpacity>
@@ -13,7 +13,7 @@ export default function SaveProfileButton() {
         You can change these settings at any time in your profile.
       </Text>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({

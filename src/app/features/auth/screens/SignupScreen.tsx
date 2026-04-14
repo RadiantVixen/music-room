@@ -44,7 +44,7 @@ export default function SignupScreen() {
     });
     Alert.alert("Success", "Account created successfully");
 
-    navigation.navigate("Login");
+    // navigation.navigate("Login");
   } catch (error: any) {
     console.log(error?.response?.data);
     Alert.alert("Signup failed", JSON.stringify(error?.response?.data || {}));

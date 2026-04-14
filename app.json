@@ -2,6 +2,7 @@
   "expo": {
     "name": "music-room",
     "slug": "music-room",
+    "scheme": "musicroom",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oumaiyma1001.musicroom"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,10 +23,20 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.oumaiyma1001.musicroom"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.789187408069-bb5dn210nm7sdb70886u5g06p8o3ggf0"
+        }
+      ]
+    ]
   }
 }

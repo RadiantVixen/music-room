@@ -1,21 +1,28 @@
-import { View, Image, TouchableOpacity, StyleSheet } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { View, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-export default function ProfileAvatarEditor() {
+type Props = {
+  avatar?: string | null;
+  onPress?: () => void;
+};
+
+export default function ProfileAvatarEditor({ avatar, onPress }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.avatarWrapper}>
         <Image
-          source={{ uri: "https://i.pravatar.cc/300" }}
+          source={{
+            uri: avatar || "https://i.pravatar.cc/300",
+          }}
           style={styles.avatar}
         />
 
-        <TouchableOpacity style={styles.camera}>
+        <TouchableOpacity style={styles.camera} onPress={onPress}>
           <Ionicons name="camera" size={16} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -23,11 +30,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-
   avatarWrapper: {
     position: "relative",
   },
-
   avatar: {
     width: 120,
     height: 120,
@@ -35,7 +40,6 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "#9956f5",
   },
-
   camera: {
     position: "absolute",
     bottom: 4,
@@ -47,4 +51,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-})
+});

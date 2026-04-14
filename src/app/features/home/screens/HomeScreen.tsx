@@ -16,21 +16,6 @@ export default function HomeScreen() {
     <AppLayout>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Welcome header */}
-        {/* <View style={styles.welcomeRow}>
-          <View>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.name}>Alex</Text>
-          </View>
-
-          <View style={styles.notification}>
-            <Ionicons name="notifications-outline" size={22} color="white" />
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>3</Text>
-            </View>
-          </View>
-        </View> */}
-
         {/* Quick actions */}
         <View style={styles.actions}>
           <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate("CreateRoom")}>

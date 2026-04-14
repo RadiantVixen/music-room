@@ -5,6 +5,7 @@ import { useAuthStore } from "../../../store/authStore";
 export default function ProfileHeader() {
   const navigation = useAppNavigation();
   const user = useAuthStore((state) => state.user);
+  // console.log("User in ProfileHeader:", user);
 
   return (
     <View style={styles.container}>
@@ -17,6 +18,8 @@ export default function ProfileHeader() {
       <Text style={styles.name}>{user?.first_name}</Text>
 
       <Text style={styles.username}>{user?.username}</Text>
+
+      <Text style={styles.bio}>{user?.profile?.bio}</Text>
 
       <View style={styles.buttons}>
         <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate("EditProfile")}>
@@ -56,6 +59,12 @@ const styles = StyleSheet.create({
   username: {
     color: "#9956f5",
     marginTop: 4,
+  },
+
+  bio: {
+    color: "#777",
+    marginTop: 12,
+    textAlign: "center",
   },
 
   buttons: {

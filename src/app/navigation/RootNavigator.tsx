@@ -14,18 +14,23 @@ import CreateRoomScreen from "../features/rooms/screens/CreateRoomScreen";
 import RoomsListScreen from "../features/rooms/screens/RoomsListScreen";
 import RoomScreen from "../features/rooms/screens/RoomScreen";
 import { useAuthStore } from "../store/authStore";
+import ChangePasswordScreen from "../features/profile/components/ChangePasswordScreen";
+import FriendsListScreen from "../features/friends/screens/FriendsListScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
-  ResetPassword: undefined;
-  VerifyEmail: { type: "signup" | "resetPassword" };
+  ResetPassword: { resetToken: string };
+  ChangePassword: undefined;
+  VerifyEmail: { type: "signup" | "resetPassword"; email?: string };
 
   Home: undefined;
   Profile : { userId: string };
   EditProfile: undefined;
+  FriendsList: undefined;
+
   CreateRoom: undefined;
   RoomsList: undefined;
   Room: { roomId: string };
@@ -52,6 +57,8 @@ return (
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="EditProfile" component={EditProfile} />
+          <Stack.Screen name="FriendsList" component={FriendsListScreen} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
           <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
           <Stack.Screen name="RoomsList" component={RoomsListScreen} />
           <Stack.Screen name="Room" component={RoomScreen} />

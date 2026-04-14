@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../navigation/RootNavigator";
@@ -8,6 +8,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -16,8 +17,12 @@ import AuthLayout from "../../../components/layout/AuthLayout";
 import AuthInput from "../components/AuthInput";
 import Button from "../../../components/Button";
 import SocialButton from "../../../components/SocialButton";
-
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
 import { useAuthStore } from "../../../store/authStore";
+import * as AuthSession from "expo-auth-session";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   type NavigationProp = NativeStackNavigationProp<
@@ -34,18 +39,49 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-  try {
-    console.log("Login button pressed with email:", email);
-    await login({
-      email,
-      password,
-    });
+    try {
+      console.log("Login button pressed with email:", email);
+      await login({
+        email,
+        password,
+      });
+      console.log("Login successful, navigating to Home1");
 
-    navigation.replace("Home");
-  } catch (error: any) {
-    console.log(error?.response?.data);
-  }
-};
+      navigation.replace("Home");
+      console.log("Login successful, navigating to Home");
+    } catch (error: any) {
+      console.log(error?.response?.data);
+    }
+  };
+
+  const socialLogin = useAuthStore((state) => state.socialLogin);
+    const redirectUri = AuthSession.makeRedirectUri({
+    scheme: "musicroom",
+    path: "redirect",
+  });
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
+    redirectUri,
+  });
+
+  useEffect(() => {
+    if (response?.type === "success") {
+      const idToken = response.authentication?.idToken;
+
+      if (!idToken) return;
+
+      socialLogin("google", idToken);
+    }
+  }, [response]);
+
+  const handleGoogleLogin = () => {
+    promptAsync(); // 👈 triggers Google popup
+  };
+
+  const handleFacebookLogin = () => {
+    console.log("Facebook login pressed");
+  };
+
 
   return (
     <AuthLayout showBackButton={false} showDecorations={false}>
@@ -108,8 +144,16 @@ export default function LoginScreen() {
 
       {/* Social */}
       <View style={styles.socialRow}>
-        <SocialButton title="Google" icon="google" />
-        <SocialButton title="Facebook" icon="facebook" />
+        <SocialButton
+          title="Google"
+          icon="google"
+          onPress={handleGoogleLogin}
+        />
+        <SocialButton
+          title="Facebook"
+          icon="facebook"
+          // onPress={handleFacebookLogin}
+        />
       </View>
 
       {/* Footer */}

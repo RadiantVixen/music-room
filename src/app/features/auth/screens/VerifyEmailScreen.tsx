@@ -5,27 +5,26 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-
 import AuthLayout from "../../../components/layout/AuthLayout";
 import Button from "../../../components/Button";
-
-import { RouteProp, useRoute } from "@react-navigation/native";
-import { RootStackParamList } from "../../../navigation/RootNavigator";
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
 import { useAppRoute } from "../../../hooks/useAppRoute";
+import { useAuthStore } from "../../../store/authStore";
 
 export default function VerifyEmailScreen() {
   const navigation = useAppNavigation();
-
-  const [code, setCode] = useState(["", "", "", ""]);
-  type RouteType = RouteProp<RootStackParamList, "VerifyEmail">;
-
   const route = useAppRoute<"VerifyEmail">();
-  const { type } = route.params;
+  const { type, email } = route.params;
 
+  const verifyResetCode = useAuthStore((state) => state.verifyResetCode);
+  const forgotPassword = useAuthStore((state) => state.forgotPassword);
+  const isLoading = useAuthStore((state) => state.isLoading);
+
+  const [code, setCode] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
   const handleChange = (value: string, index: number) => {
@@ -35,36 +34,65 @@ export default function VerifyEmailScreen() {
     updatedCode[index] = cleanValue;
     setCode(updatedCode);
 
-    if (cleanValue && index < 3) {
+    if (cleanValue && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleKeyPress = (
-    key: string,
-    index: number
-  ) => {
+  const handleKeyPress = (key: string, index: number) => {
     if (key === "Backspace" && !code[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const otp = code.join("");
-    console.log("Verify code:", otp);
 
-    // after successful verification:
+    if (otp.length !== 6) {
+      Alert.alert("Error", "Please enter the 6-digit code.");
+      return;
+    }
+
     if (type === "resetPassword") {
-      navigation.navigate("ResetPassword");
+      if (!email) {
+        Alert.alert("Error", "Email is missing.");
+        return;
+      }
+
+      try {
+        const response = await verifyResetCode(email, otp);
+        const resetToken = response?.data?.reset_token;
+
+        if (!resetToken) {
+          Alert.alert("Error", "Reset token not received.");
+          return;
+        }
+
+        navigation.navigate("ResetPassword", { resetToken });
+      } catch (error: any) {
+        Alert.alert(
+          "Error",
+          error?.response?.data?.error || "Invalid or expired code."
+        );
+      }
     } else {
       navigation.navigate("Login");
     }
   };
 
-  const handleResend = () => {
-    console.log("Resend code");
+  const handleResend = async () => {
+    if (type === "resetPassword" && email) {
+      try {
+        await forgotPassword(email);
+        Alert.alert("Code sent", "A new 6-digit code was sent to your email.");
+      } catch (error: any) {
+        Alert.alert(
+          "Error",
+          error?.response?.data?.message || "Could not resend code."
+        );
+      }
+    }
   };
- 
 
   return (
     <AuthLayout>
@@ -85,8 +113,7 @@ export default function VerifyEmailScreen() {
         <Text style={styles.title}>Verify Email</Text>
 
         <Text style={styles.description}>
-          We sent a 4-digit code to your email. Please enter it below to
-          continue.
+          We sent a 6-digit code to your email. Please enter it below to continue.
         </Text>
 
         <View style={styles.otpRow}>
@@ -110,7 +137,10 @@ export default function VerifyEmailScreen() {
           ))}
         </View>
 
-        <Button title="Verify" onPress={handleVerify} />
+        <Button
+          title={isLoading ? "Verifying..." : "Verify"}
+          onPress={handleVerify}
+        />
 
         <View style={styles.resendWrapper}>
           <Text style={styles.resendText}>Didn&apos;t receive the code?</Text>
@@ -204,19 +234,20 @@ const styles = StyleSheet.create({
   otpRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 14,
+    gap: 8,
     marginBottom: 28,
+    flexWrap: "wrap",
   },
 
   otpInput: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 48,
+    height: 56,
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: "#334155",
     backgroundColor: "rgba(30,41,59,0.35)",
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
   },
 

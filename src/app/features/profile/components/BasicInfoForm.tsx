@@ -1,18 +1,30 @@
-import { View, Text, TextInput, StyleSheet } from "react-native"
-import { useState } from "react"
+import { View, Text, TextInput, StyleSheet } from "react-native";
 
-export default function BasicInfoForm() {
-  const [name, setName] = useState("Alexa Henderson")
-  const [username, setUsername] = useState("alexa_beats")
-  const [bio, setBio] = useState(
-    "Curating the finest underground house tracks. Always looking for new BPMs."
-  )
+type Props = {
+  name: string;
+  username: string;
+  bio: string;
+  email?: string;
+  setName: (value: string) => void;
+  setUsername: (value: string) => void;
+  setBio: (value: string) => void;
+  setEmail?: (value: string) => void;
+};
 
+export default function BasicInfoForm({
+  name,
+  username,
+  bio,
+  email,
+  setName,
+  setUsername,
+  setBio,
+  setEmail,
+}: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.section}>BASIC INFO</Text>
 
-      {/* Full Name */}
       <View style={styles.field}>
         <Text style={styles.label}>Full Name</Text>
         <TextInput
@@ -24,7 +36,6 @@ export default function BasicInfoForm() {
         />
       </View>
 
-      {/* Username */}
       <View style={styles.field}>
         <Text style={styles.label}>Username</Text>
 
@@ -40,7 +51,21 @@ export default function BasicInfoForm() {
         </View>
       </View>
 
-      {/* Bio */}
+      {/* add email field */}
+      {setEmail && (
+        <View style={styles.field}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            style={styles.input}
+            placeholder="Enter your email"
+            placeholderTextColor="#777"
+            keyboardType="email-address"
+          />
+        </View>
+      )}
+
       <View style={styles.field}>
         <Text style={styles.label}>Bio</Text>
         <TextInput
@@ -52,7 +77,7 @@ export default function BasicInfoForm() {
         />
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
