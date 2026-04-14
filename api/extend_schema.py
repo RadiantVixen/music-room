@@ -41,7 +41,7 @@ login_schema = extend_schema(
     examples=[
         OpenApiExample(
             'Login example',
-            value={'email': 'user@example.com', 'password': 'strongpassword123'},
+            value={'email': 'oumaiymafrikel@gmail.com', 'password': 'OumaIma123@'},
             request_only=True,
         )
     ],

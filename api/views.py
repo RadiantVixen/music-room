@@ -117,9 +117,9 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         # select_related avoids a second DB query for the profile on every GET /me/
         return (
-            CustomUser.objects
-            .select_related('profile')
-            .get(pk=self.request.user.pk)
+        CustomUser.objects
+        .select_related('profile', 'profile__music_preferences')
+        .get(pk=self.request.user.pk)
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -490,7 +490,7 @@ class LogoutView(APIView):
 
 
 class UserListView(APIView):
-    permission_classes = [IsAuthenticated, IsStaffRoleUser]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
