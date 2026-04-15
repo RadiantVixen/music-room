@@ -1032,31 +1032,32 @@ graph TD
 - **License Check:** User must pass the room's license requirements (default / invited / location)
 - **Success Response (200 OK):**
   ```json
-  [
-    {
-      "id": 1,
-      "room": 5,
-      "title": "Bohemian Rhapsody",
-      "artist": "Queen",
-      "external_url": "https://open.spotify.com/track/...",
-      "suggested_by_id": 3,
-      "suggested_by_username": "johndoe",
-      "vote_count": 12,
-      "created_at": "2026-04-14T18:00:00Z"
-    },
-    {
-      "id": 2,
-      "room": 5,
-      "title": "Stairway to Heaven",
-      "artist": "Led Zeppelin",
-      "external_url": "",
-      "suggested_by_id": 7,
-      "suggested_by_username": "janedoe",
-      "vote_count": 8,
-      "created_at": "2026-04-14T18:05:00Z"
-    }
-  ]
+  {
+    "count": 12,
+    "next": "http://api.example.com/api/events/5/tracks/?page=2",
+    "previous": null,
+    "results": [
+      {
+        "id": 1,
+        "room": 5,
+        "title": "Bohemian Rhapsody",
+        "artist": "Queen",
+        "external_url": "https://open.spotify.com/track/...",
+        "suggested_by_id": 3,
+        "suggested_by_username": "johndoe",
+        "vote_count": 12,
+        "rank": 1,
+        "has_voted": true,
+        "created_at": "2026-04-14T18:00:00Z"
+      },
+      ...
+    ]
+  }
   ```
+- **Fields Notes:**
+  - `rank`: 1-based rank computed via DB window function.
+  - `has_voted`: Boolean indicating if the requesting user has already voted.
+- **Pagination:** Uses standard DRF page-number pagination (default size: 50).
 - **Error Responses:**
   - `400 Bad Request` — Room is not a vote-type room
   - `403 Forbidden` — User does not meet license requirements
@@ -1137,7 +1138,7 @@ graph TD
     B -->|Valid| D["Check License"]
     D -->|Denied| E["403 Forbidden"]
     D -->|Allowed| F["Query Tracks ORDER BY vote_count DESC"]
-    F -->|Return| G["200 Ranked Track Array"]
+    F -->|Return| G["200 Paginated Track Results"]
     
     H["User Suggests Track"] -->|POST /events/room_id/tracks/| I["Verify JWT Token"]
     I -->|Invalid| J["401 Unauthorized"]
@@ -1188,33 +1189,30 @@ graph TD
 - **License Check:** User must pass the room's license requirements
 - **Success Response (200 OK):**
   ```json
-  [
-    {
-      "id": 1,
-      "room": 10,
-      "title": "Come Together",
-      "artist": "The Beatles",
-      "external_url": "",
-      "added_by_id": 3,
-      "added_by_username": "johndoe",
-      "position": 0,
-      "created_at": "2026-04-14T18:00:00Z",
-      "updated_at": "2026-04-14T18:00:00Z"
-    },
-    {
-      "id": 2,
-      "room": 10,
-      "title": "Hey Jude",
-      "artist": "The Beatles",
-      "external_url": "https://open.spotify.com/track/...",
-      "added_by_id": 7,
-      "added_by_username": "janedoe",
-      "position": 1,
-      "created_at": "2026-04-14T18:05:00Z",
-      "updated_at": "2026-04-14T18:05:00Z"
-    }
-  ]
+  {
+    "count": 25,
+    "next": null,
+    "previous": null,
+    "version": 5,
+    "tracks": [
+      {
+        "id": 1,
+        "room": 10,
+        "title": "Come Together",
+        "artist": "The Beatles",
+        "external_url": "",
+        "added_by_id": 3,
+        "added_by_username": "johndoe",
+        "position": 0,
+        "created_at": "2026-04-14T18:00:00Z",
+        "updated_at": "2026-04-14T18:00:00Z"
+      },
+      ...
+    ]
+  }
   ```
+- **Pagination:** Uses DRF page-number pagination. Results are returned under the `tracks` key.
+- **Concurrency Info:** `version` field is included in the response to help clients synchronize local state.
 - **Error Responses:**
   - `400 Bad Request` — Room is not a playlist-type room
   - `403 Forbidden` — User does not meet license requirements
@@ -1304,7 +1302,7 @@ graph TD
     A["User Views Playlist"] -->|GET /playlists/room_id/tracks/| B["Verify JWT + License"]
     B -->|Denied| C["401/403"]
     B -->|Allowed| D["Query Tracks ORDER BY position ASC"]
-    D -->|Return| E["200 Ordered Track Array"]
+    D -->|Return| E["200 Paginated Playlist Response"]
     
     F["User Adds Track"] -->|POST /playlists/room_id/tracks/| G["Verify JWT + License"]
     G -->|Denied| H["401/403"]
@@ -1358,35 +1356,29 @@ graph TD
 - **License Check:** User must pass the room's license requirements
 - **Success Response (200 OK):**
   ```json
-  [
-    {
-      "id": 1,
-      "room": 15,
-      "device_identifier": "uuid-abc-123",
-      "device_name": "Living Room Speaker",
-      "owner_id": 3,
-      "owner_username": "johndoe",
-      "delegated_to_id": null,
-      "delegated_to_username": null,
-      "status": "active",
-      "created_at": "2026-04-14T18:00:00Z",
-      "updated_at": "2026-04-14T18:00:00Z"
-    },
-    {
-      "id": 2,
-      "room": 15,
-      "device_identifier": "uuid-def-456",
-      "device_name": "Kitchen Speaker",
-      "owner_id": 3,
-      "owner_username": "johndoe",
-      "delegated_to_id": 7,
-      "delegated_to_username": "janedoe",
-      "status": "active",
-      "created_at": "2026-04-14T18:10:00Z",
-      "updated_at": "2026-04-14T19:00:00Z"
-    }
-  ]
+  {
+    "count": 2,
+    "next": null,
+    "previous": null,
+    "results": [
+      {
+        "id": 1,
+        "room": 15,
+        "device_identifier": "uuid-abc-123",
+        "device_name": "Living Room Speaker",
+        "owner_id": 3,
+        "owner_username": "johndoe",
+        "delegated_to_id": null,
+        "delegated_to_username": null,
+        "status": "active",
+        "created_at": "2026-04-14T18:00:00Z",
+        "updated_at": "2026-04-14T18:00:00Z"
+      },
+      ...
+    ]
+  }
   ```
+- **Pagination:** Uses standard DRF page-number pagination (default size: 50).
 - **Error Responses:**
   - `400 Bad Request` — Room is not a delegation-type room
   - `403 Forbidden` — User does not meet license requirements
@@ -1507,7 +1499,7 @@ graph TD
     A["User Views Devices"] -->|GET /delegation/room_id/devices/| B["Verify JWT + License"]
     B -->|Denied| C["401/403"]
     B -->|Allowed| D["Query Devices"]
-    D -->|Return| E["200 Device Array"]
+    D -->|Return| E["200 Paginated Device Results"]
     
     F["User Registers Device"] -->|POST /delegation/room_id/devices/| G["Verify JWT + License"]
     G -->|Denied| H["401/403"]
@@ -1572,6 +1564,10 @@ All three music services support real-time updates via **Django Channels** WebSo
   - Room access verified (visibility + membership)
   - If denied → connection closed immediately
   - If allowed → client joins the room group and receives `initial_state` message
+
+**Real-time Geo-fencing Decision**
+- **Persistence:** WebSocket connections are read-only. Once a connection is established (passing initial geo-fencing checks), it is allowed to persist indefinitely even if the user leaves the geo-fenced area.
+- **Enforcement:** All mutations (voting, suggesting tracks, moving tracks, etc.) are performed via the REST API, where geo-fencing is strictly enforced on every request. Read-only real-time updates carry no business risk if received outside the venue.
 
 **Initial State Message (sent on connect):**
 ```json

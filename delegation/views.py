@@ -18,7 +18,7 @@ Conflict Resolution Strategy:
 
 from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -70,7 +70,7 @@ def _broadcast_delegation(room_id, event_type, extra=None):
         pass
 
 
-class DeviceListCreateView(APIView):
+class DeviceListCreateView(generics.GenericAPIView):
     """
     GET  — List all devices in a delegation room.
     POST — Register a new device.
@@ -95,6 +95,11 @@ class DeviceListCreateView(APIView):
         devices = DeviceDelegation.objects.filter(room=room).select_related(
             'owner', 'delegated_to',
         )
+        
+        page = self.paginate_queryset(devices)
+        if page is not None:
+             return self.get_paginated_response(DeviceDelegationSerializer(page, many=True).data)
+             
         return Response(DeviceDelegationSerializer(devices, many=True).data)
 
     @extend_schema(

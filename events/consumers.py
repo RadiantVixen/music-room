@@ -10,6 +10,13 @@ Events sent to clients:
   - type: 'vote_update'   → after a vote is cast
   - type: 'track_added'   → after a new track is suggested
   - type: 'track_removed' → after a track is deleted
+
+BUSINESS DECISION (Stale WebSocket Connections & Geo-fencing):
+Read-only access to real-time vote updates via WebSockets is intentionally
+allowed to persist even if the user leaves the geo-fenced venue. Since active
+participation (casting a vote / suggesting a track) enforces strict geo-location
+checks on every REST API call, read-only WebSocket sessions pose no business
+risk. Disconnection based on geo-fencing is not required.
 """
 
 import json

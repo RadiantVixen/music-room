@@ -10,7 +10,8 @@ Covers:
   - Duplicate device prevention
   - Control actions: owner, delegate, and stranger permissions
   - Action idempotency (same action_id only executes once)
-  - Concurrent delegation safety
+  - Concurrent delegation safety (No DB connection leaks)
+  - Concurrent idempotency safety (Simultaneous retries don't duplicate actions)
 """
 
 import threading
@@ -297,17 +298,22 @@ class TestConcurrentDelegation(TransactionTestCase):
 
         # Pre-generate tokens
         token = str(RefreshToken.for_user(self.owner).access_token)
-
         results = {}
 
         def delegate_to(friend_id, label):
-            c = APIClient()
-            c.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
-            r = c.post(
-                f'/api/delegation/{self.room.id}/devices/{device_id}/delegate/',
-                {'friend_id': friend_id}, format='json',
-            )
-            results[label] = r.status_code
+            from django.db import connection
+            try:
+                c = APIClient()
+                c.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+                r = c.post(
+                    f'/api/delegation/{self.room.id}/devices/{device_id}/delegate/',
+                    {'friend_id': friend_id}, format='json',
+                )
+                results[label] = r.status_code
+            except Exception as e:
+                results[label] = str(e)
+            finally:
+                connection.close()  # Clean DB connection for threads!
 
         t1 = threading.Thread(target=delegate_to, args=(self.friend1.id, 'f1'))
         t2 = threading.Thread(target=delegate_to, args=(self.friend2.id, 'f2'))
@@ -324,3 +330,48 @@ class TestConcurrentDelegation(TransactionTestCase):
         from delegation.models import DeviceDelegation
         device = DeviceDelegation.objects.get(pk=device_id)
         self.assertIn(device.delegated_to_id, [self.friend1.id, self.friend2.id])
+
+    def test_concurrent_control_actions_same_idempotency_key(self):
+        """
+        Simulate a flaky network where the client sends the exact same
+        control request 10 times concurrently. The server must handle the
+        integrity errors and strictly process it ONCE.
+        """
+        self._auth(self.owner)
+        cr = self.client.post(
+            f'/api/delegation/{self.room.id}/devices/',
+            {'device_identifier': 'uuid-idem', 'device_name': 'Idempotent Speaker'},
+            format='json',
+        )
+        device_id = cr.data['id']
+        action_id = str(uuid.uuid4())
+        token = str(RefreshToken.for_user(self.owner).access_token)
+
+        results = []
+
+        def send_action():
+            from django.db import connection
+            try:
+                c = APIClient()
+                c.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+                r = c.post(
+                    f'/api/delegation/{self.room.id}/devices/{device_id}/control/',
+                    {'action_id': action_id, 'action_type': 'skip'}, format='json',
+                )
+                results.append(r.status_code)
+            except Exception as e:
+                results.append(str(e))
+            finally:
+                connection.close()
+
+        # 10 threads firing the exact same request simultaneously
+        threads = [threading.Thread(target=send_action) for _ in range(10)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+
+        # 1 should be 201 (Created), and the 9 retries should gracefully return 200 (OK)
+        self.assertEqual(results.count(201), 1, f"Expected exactly one 201 Created. Results: {results}")
+        self.assertEqual(results.count(200), 9, f"Expected exactly nine 200 OK. Results: {results}")
+
+        from delegation.models import ControlAction
+        self.assertEqual(ControlAction.objects.count(), 1)

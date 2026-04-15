@@ -9,9 +9,10 @@ Endpoints:
 """
 
 from django.db import transaction, IntegrityError
-from django.db.models import F
+from django.db.models import F, Window, Exists, OuterRef
+from django.db.models.functions import RowNumber
 from django.shortcuts import get_object_or_404
-from rest_framework import serializers, status
+from rest_framework import serializers, status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -61,7 +62,7 @@ def _broadcast(room_id, event_type, extra=None):
 
 # ── Views ────────────────────────────────────────────────────────────────────
 
-class TrackListCreateView(APIView):
+class TrackListCreateView(generics.GenericAPIView):
     """
     GET  — List tracks in a vote room, ordered by vote count (descending).
            Deterministic ordering: vote_count DESC → created_at DESC → id DESC.
@@ -85,7 +86,21 @@ class TrackListCreateView(APIView):
         if not allowed:
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
-        tracks = Track.objects.filter(room=room).select_related('suggested_by')
+        tracks = Track.objects.filter(room=room).annotate(
+            _rank=Window(
+                expression=RowNumber(),
+                order_by=[F('vote_count').desc(), F('created_at').desc(), F('id').desc()]
+            ),
+            _has_voted=Exists(
+                Vote.objects.filter(track=OuterRef('pk'), user=request.user)
+            )
+        ).select_related('suggested_by')
+    
+        page = self.paginate_queryset(tracks)
+        if page is not None:
+             serializer = TrackSerializer(page, many=True, context={'request': request})
+             return self.get_paginated_response(serializer.data)
+             
         return Response(TrackSerializer(tracks, many=True, context={'request': request}).data)
 
     @extend_schema(
@@ -172,40 +187,39 @@ class TrackVoteView(APIView):
         # ── Atomic vote with row-level locking ──────────────────────────
         try:
             with transaction.atomic():
-                # Lock the track row — blocks concurrent voters on the SAME track
-                track = Track.objects.select_for_update().get(pk=track_id, room=room)
+                # 1. Try to create vote (DB enforces uniqueness)
+                Vote.objects.create(
+                    track_id=track_id,
+                    user=request.user,
+                    room=room
+                )
 
-                # Check for duplicate vote (inside the lock)
-                if Vote.objects.filter(track=track, user=request.user).exists():
+                # 2. Atomic increment (no lock)
+                updated = Track.objects.filter(
+                    pk=track_id,
+                    room=room
+                ).update(vote_count=F('vote_count') + 1)
+
+                if updated == 0:
+                    transaction.set_rollback(True)
                     return Response(
-                        {'detail': 'You have already voted for this track.'},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {'detail': 'Track not found in this room.'},
+                        status=status.HTTP_404_NOT_FOUND,
                     )
 
-                # Record vote + atomic increment
-                Vote.objects.create(track=track, user=request.user, room=room)
-                Track.objects.filter(pk=track.pk).update(vote_count=F('vote_count') + 1)
-
-        except Track.DoesNotExist:
-            return Response(
-                {'detail': 'Track not found in this room.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         except IntegrityError:
-            # Safety net: the unique_together constraint caught a race condition
             return Response(
                 {'detail': 'You have already voted for this track.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # Re-fetch to get the updated vote_count
-        track.refresh_from_db()
-
+    
+        # Fetch updated track (single query, no refresh)
+        track = get_object_or_404(Track, pk=track_id)
+    
         log_action(request, 'track_voted', f'Track id={track_id} in room {room_id}')
-
-        # Broadcast updated playlist to all connected clients
+    
         _broadcast(room_id, 'vote.update')
-
+    
         return Response({
             'detail': 'Vote recorded.',
             'track': TrackSerializer(track, context={'request': request}).data,

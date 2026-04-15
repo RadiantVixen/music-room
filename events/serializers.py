@@ -8,10 +8,7 @@ from api.models import Room
 
 
 class TrackSerializer(serializers.ModelSerializer):
-    """
-    Read serializer — exposes full track info including vote count,
-    deterministic rank, and whether the requesting user has voted.
-    """
+
     suggested_by_id = serializers.IntegerField(source='suggested_by.id', read_only=True)
     suggested_by_username = serializers.CharField(source='suggested_by.username', read_only=True)
     rank = serializers.SerializerMethodField(
@@ -35,39 +32,13 @@ class TrackSerializer(serializers.ModelSerializer):
         ]
 
     def get_rank(self, obj):
-        """
-        Compute rank by comparing against all tracks in the same room.
-        Uses the same ordering as Track.Meta.ordering so every client
-        gets an identical rank for the same data.
-        """
-        # If the queryset was already ordered (which it is by Meta.ordering),
-        # we compute rank from the queryset position.
-        view = self.context.get('view')
-        request = self.context.get('request')
-
-        # For list serialization, use annotation if available
-        if hasattr(obj, '_rank'):
-            return obj._rank
-
-        # Fallback: count how many tracks rank higher
-        higher = Track.objects.filter(
-            room=obj.room,
-        ).filter(
-            # tracks that rank ABOVE this one
-            models_q_higher_vote(obj)
-        ).count()
-        return higher + 1
+        return getattr(obj, '_rank', None)  
 
     def get_has_voted(self, obj):
-        """Check if the current request user has voted for this track."""
-        request = self.context.get('request')
-        if not request or not hasattr(request, 'user') or not request.user.is_authenticated:
-            # When serialized without request context (e.g. WS broadcast), return None
-            return None
-        # Use prefetched votes if available, otherwise query
-        if hasattr(obj, '_prefetched_objects_cache') and 'votes' in obj._prefetched_objects_cache:
-            return any(v.user_id == request.user.id for v in obj.votes.all())
-        return Vote.objects.filter(track=obj, user=request.user).exists()
+        if not self.context.get('request') or not self.context['request'].user.is_authenticated:
+            return False
+        return getattr(obj, '_has_voted', False)
+
 
 
 def models_q_higher_vote(track):

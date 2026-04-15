@@ -26,7 +26,7 @@ Conflict handling:
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -99,7 +99,7 @@ def _broadcast_playlist(room_id, room):
         pass
 
 
-class PlaylistTrackListCreateView(APIView):
+class PlaylistTrackListCreateView(generics.GenericAPIView):
     """
     GET  — Ordered track list for a playlist room (includes version).
     POST — Add a new track at the end of the playlist.
@@ -123,6 +123,14 @@ class PlaylistTrackListCreateView(APIView):
 
         tracks = PlaylistTrack.objects.filter(room=room).select_related('added_by')
         version = _get_version(room)
+        
+        page = self.paginate_queryset(tracks)
+        if page is not None:
+            resp = self.get_paginated_response(PlaylistTrackSerializer(page, many=True).data)
+            resp.data['tracks'] = resp.data.pop('results')
+            resp.data['version'] = version  # Custom wrapper field
+            return resp
+            
         return Response({
             'version': version,
             'tracks': PlaylistTrackSerializer(tracks, many=True).data,
@@ -200,17 +208,18 @@ class PlaylistTrackDeleteView(APIView):
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
         with transaction.atomic():
-            # Lock the playlist version row
             _lock_playlist(room)
-
             track = get_object_or_404(PlaylistTrack, pk=track_id, room=room)
             removed_pos = track.position
             track.delete()
 
-            # Shift positions of all tracks after the removed one
-            PlaylistTrack.objects.filter(
-                room=room, position__gt=removed_pos,
-            ).update(position=F('position') - 1)
+            # Iterate sequentially to safely avoid temporary unique constraint collisions
+            affected = list(
+                PlaylistTrack.objects.filter(room=room, position__gt=removed_pos)
+                .order_by('position').values_list('pk', flat=True)
+            )
+            for pk in affected:
+                PlaylistTrack.objects.filter(pk=pk).update(position=F('position') - 1)
 
             _bump_version(room)
 
