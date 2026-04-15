@@ -41,3 +41,13 @@ export const respondToFriendRequestRequest = async (
   });
   return response.data;
 };
+
+export const getFriendProfileRequest = async (userId: number) => {
+  const { data } = await api.get(`/friends/profile/${userId}/`);
+  return data;
+};
+
+export const blockUserRequest = async (userId: number) => {
+  const { data } = await api.post(`/friends/block/${userId}/`);
+  return data;
+};

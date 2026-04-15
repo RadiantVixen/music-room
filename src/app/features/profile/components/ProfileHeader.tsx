@@ -1,38 +1,54 @@
-import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native"
-import { useAppNavigation } from "../../../hooks/useAppNavigation";
-import { useAuthStore } from "../../../store/authStore";
+import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 
-export default function ProfileHeader() {
-  const navigation = useAppNavigation();
-  const user = useAuthStore((state) => state.user);
-  // console.log("User in ProfileHeader:", user);
+type Props = {
+  avatar?: string | null;
+  name?: string;
+  username?: string;
+  bio?: string;
+  primaryButtonText?: string;
+  secondaryButtonText?: string;
+  onPrimaryPress?: () => void;
+  onSecondaryPress?: () => void;
+};
 
+export default function ProfileHeader({
+  avatar,
+  name,
+  username,
+  bio,
+  primaryButtonText,
+  secondaryButtonText,
+  onPrimaryPress,
+  onSecondaryPress,
+}: Props) {
   return (
     <View style={styles.container}>
-
       <Image
-        source={{ uri: "https://i.pravatar.cc/200" }}
+        source={{ uri: avatar || "https://i.pravatar.cc/200" }}
         style={styles.avatar}
       />
 
-      <Text style={styles.name}>{user?.first_name}</Text>
+      <Text style={styles.name}>{name || "Unknown User"}</Text>
+      <Text style={styles.username}>@{username}</Text>
+      <Text style={styles.bio}>{bio || "No bio yet."}</Text>
 
-      <Text style={styles.username}>{user?.username}</Text>
+      {(primaryButtonText || secondaryButtonText) && (
+        <View style={styles.buttons}>
+          {secondaryButtonText ? (
+            <TouchableOpacity style={styles.secondaryBtn} onPress={onSecondaryPress}>
+              <Text style={styles.secondaryText}>{secondaryButtonText}</Text>
+            </TouchableOpacity>
+          ) : null}
 
-      <Text style={styles.bio}>{user?.profile?.bio}</Text>
-
-      <View style={styles.buttons}>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate("EditProfile")}>
-          <Text style={styles.secondaryText}>Edit Profile</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.primaryBtn}>
-          <Text style={styles.primaryText}>Share Profile</Text>
-        </TouchableOpacity>
-      </View>
-
+          {primaryButtonText ? (
+            <TouchableOpacity style={styles.primaryBtn} onPress={onPrimaryPress}>
+              <Text style={styles.primaryText}>{primaryButtonText}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -95,4 +111,4 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: "white",
   },
-})
+});

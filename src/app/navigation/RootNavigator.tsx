@@ -16,6 +16,7 @@ import RoomScreen from "../features/rooms/screens/RoomScreen";
 import { useAuthStore } from "../store/authStore";
 import ChangePasswordScreen from "../features/profile/components/ChangePasswordScreen";
 import FriendsListScreen from "../features/friends/screens/FriendsListScreen";
+import FriendProfileScreen from "../features/friends/screens/FriendProfileScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -29,11 +30,13 @@ export type RootStackParamList = {
   Home: undefined;
   Profile : { userId: string };
   EditProfile: undefined;
-  FriendsList: undefined;
-
+  
   CreateRoom: undefined;
   RoomsList: undefined;
   Room: { roomId: string };
+  
+  FriendsList: undefined;
+  FriendProfile: { userId: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,11 +60,13 @@ return (
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="EditProfile" component={EditProfile} />
-          <Stack.Screen name="FriendsList" component={FriendsListScreen} />
           <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
           <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
           <Stack.Screen name="RoomsList" component={RoomsListScreen} />
           <Stack.Screen name="Room" component={RoomScreen} />
+
+          <Stack.Screen name="FriendsList" component={FriendsListScreen} />
+          <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
         </>
       )}
     </Stack.Navigator>

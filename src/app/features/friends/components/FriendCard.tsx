@@ -1,9 +1,9 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function FriendCard({ friend, onRemove }: any) {
+export default function FriendCard({ friend, onPress, onRemove }: any) {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.card}>
       <Image
         source={{
           uri: friend.avatar || "https://i.pravatar.cc/150?img=12",
@@ -18,10 +18,13 @@ export default function FriendCard({ friend, onRemove }: any) {
         <Text style={styles.username}>@{friend.username}</Text>
       </View>
 
-      <TouchableOpacity onPress={onRemove}>
+      <TouchableOpacity
+        onPress={onRemove}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
         <Ionicons name="person-remove-outline" size={20} color="#ff5c5c" />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 

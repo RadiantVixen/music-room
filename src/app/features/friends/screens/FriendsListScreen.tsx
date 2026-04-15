@@ -5,10 +5,12 @@ import FriendsHeaderNav from "../components/FriendsHeaderNav";
 import FriendCard from "../components/FriendCard";
 
 import { useEffect } from "react";
+import { useNavigation } from "@react-navigation/native";
 import { useFriendsStore } from "../../../store/friendsStore";
 
 export default function FriendsListScreen() {
   const { friends, fetchFriends, removeFriend, isLoading } = useFriendsStore();
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     fetchFriends();
@@ -42,6 +44,7 @@ export default function FriendsListScreen() {
               <FriendCard
                 key={friend.id}
                 friend={friend}
+                onPress={() => navigation.navigate("FriendProfile", { userId: friend.id })}
                 onRemove={() => handleRemove(friend.id)}
               />
             ))

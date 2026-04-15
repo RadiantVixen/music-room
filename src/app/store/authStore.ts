@@ -63,6 +63,7 @@ type AuthState = {
   setUser: (user: User | null) => void;
 
   updateMe: (data: UpdateProfilePayload) => Promise<User>;
+  refreshMe: () => Promise<User>;
   forgotPassword: (email: string) => Promise<any>;
   verifyResetCode: (email: string, code: string) => Promise<any>;
   resetPassword: (
@@ -204,6 +205,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       return updatedUser;
     } finally {
       set({ isLoading: false });
+    }
+  },
+  refreshMe: async () => {
+    try {
+      const user = await getMeRequest();
+      set({ user });
+      return user;
+    } catch (error) {
+      console.log("refreshMe error:", error);
+      throw error;
     }
   },
 

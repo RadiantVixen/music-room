@@ -7,7 +7,10 @@ import {
   searchUsersRequest,
   sendFriendRequestRequest,
   respondToFriendRequestRequest,
+  getFriendProfileRequest,
+  blockUserRequest,
 } from "../api/friends";
+import { useAuthStore } from "./authStore";
 
 export type Friend = {
   id: number;
@@ -16,6 +19,48 @@ export type Friend = {
   email: string;
   avatar: string | null;
 };
+export type FriendProfile = {
+  id: number;
+  username: string;
+  first_name: string;
+  email: string;
+  profile?: {
+    avatar: string | null;
+    bio: string;
+    location: string;
+    provider: string | null;
+    phone: string | null;
+    phone_verified: boolean;
+    created_at: string;
+    updated_at: string;
+  } | null;
+  music_preferences?: {
+    favorite_genres: string[];
+    favorite_artists: string[];
+    favorite_tracks: string[];
+    updated_at: string | null;
+  };
+  stats?: {
+    rooms_count: number;
+    friends_count: number;
+    vibes_count: number;
+  };
+  relationship?: {
+    status:
+      | "self"
+      | "none"
+      | "friends"
+      | "request_sent"
+      | "request_received"
+      | "blocked";
+    request_id: number | null;
+    is_friend: boolean;
+    can_add_friend: boolean;
+    can_unfriend: boolean;
+    can_block: boolean;
+  };
+};
+
 
 export type FriendRequestItem = {
   id: number;
@@ -35,6 +80,7 @@ type FriendsState = {
   pendingRequests: FriendRequestItem[];
   sentRequests: FriendRequestItem[];
   searchedUsers: Friend[];
+  selectedFriendProfile: FriendProfile | null;
   isLoading: boolean;
 
   fetchFriends: () => Promise<void>;
@@ -47,14 +93,19 @@ type FriendsState = {
     action: "accept" | "decline" | "block"
   ) => Promise<any>;
   removeFriend: (userId: number) => Promise<void>;
+  fetchFriendProfile: (userId: number) => Promise<void>;
+  blockUser: (userId: number) => Promise<void>;
   clearSearchedUsers: () => void;
+  clearSelectedFriendProfile: () => void;
 };
+
 
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   friends: [],
   pendingRequests: [],
   sentRequests: [],
   searchedUsers: [],
+  selectedFriendProfile: null,
   isLoading: false,
 
   fetchFriends: async () => {
@@ -120,6 +171,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       await get().fetchPendingRequests();
       await get().fetchFriends();
 
+      await useAuthStore.getState().refreshMe();
+
       return result;
     } finally {
       set({ isLoading: false });
@@ -129,14 +182,54 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   removeFriend: async (userId: number) => {
     set({ isLoading: true });
     try {
-      await removeFriendRequest(userId);
-      set({
+        await removeFriendRequest(userId);
+
+        set({
         friends: get().friends.filter((friend) => friend.id !== userId),
-      });
+        selectedFriendProfile:
+            get().selectedFriendProfile?.id === userId
+            ? {
+                ...get().selectedFriendProfile!,
+                relationship: {
+                    status: "none",
+                    request_id: null,
+                    is_friend: false,
+                    can_add_friend: true,
+                    can_unfriend: false,
+                    can_block: true,
+                },
+                }
+            : get().selectedFriendProfile,
+        });
+
+        await useAuthStore.getState().refreshMe();
     } finally {
-      set({ isLoading: false });
+        set({ isLoading: false });
     }
-  },
+    },
 
   clearSearchedUsers: () => set({ searchedUsers: [] }),
+
+  fetchFriendProfile: async (userId: number) => {
+    set({ isLoading: true });
+    try {
+        const data = await getFriendProfileRequest(userId);
+        set({ selectedFriendProfile: data });
+    } finally {
+        set({ isLoading: false });
+    }
+    },
+
+  blockUser: async (userId: number) => {
+    set({ isLoading: true });
+    try {
+        await blockUserRequest(userId);
+        await get().fetchFriends();
+        set({ selectedFriendProfile: null });
+    } finally {
+        set({ isLoading: false });
+    }
+    },
+
+  clearSelectedFriendProfile: () => set({ selectedFriendProfile: null }),
 }));
