@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, authenticate
 from django.http import HttpResponse
 from django.conf import settings
-from .models import CustomUser, Profile
+from .models import CustomUser, FriendRequest, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
@@ -532,3 +532,31 @@ class UserAdminDetailView(APIView):
         )
 
 
+class BlockUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request, user_id):
+        target = get_object_or_404(CustomUser, pk=user_id)
+
+        if target == request.user:
+            return Response({'error': 'You cannot block yourself.'}, status=400)
+
+        relation = FriendRequest.objects.filter(
+            Q(sender=request.user, receiver=target) |
+            Q(sender=target, receiver=request.user)
+        ).order_by('-updated_at').first()
+
+        if relation:
+            relation.sender = request.user
+            relation.receiver = target
+            relation.status = 'blocked'
+            relation.save(update_fields=['sender', 'receiver', 'status', 'updated_at'])
+        else:
+            FriendRequest.objects.create(
+                sender=request.user,
+                receiver=target,
+                status='blocked',
+            )
+
+        return Response({'message': 'User blocked successfully.'}, status=200)

@@ -429,7 +429,123 @@ class PublicUserSerializer(serializers.ModelSerializer):
             pass
         return None
 
+class FriendProfileSerializer(serializers.ModelSerializer):
+    profile = ProfileSerializer(read_only=True)
+    music_preferences = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+    relationship = serializers.SerializerMethodField()
 
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'email',
+            'profile',
+            'music_preferences',
+            'stats',
+            'relationship',
+        ]
+
+    def get_music_preferences(self, obj):
+        try:
+            prefs = obj.profile.music_preferences
+            return NestedMusicPreferencesSerializer(prefs).data
+        except MusicPreferences.DoesNotExist:
+            return {
+                'favorite_genres': [],
+                'favorite_artists': [],
+                'favorite_tracks': [],
+                'updated_at': None,
+            }
+
+    def get_stats(self, obj):
+        rooms_count = Room.objects.filter(owner=obj).count()
+
+        friends_count = FriendRequest.objects.filter(
+            status='accepted'
+        ).filter(
+            Q(sender=obj) | Q(receiver=obj)
+        ).count()
+
+        return {
+            'rooms_count': rooms_count,
+            'friends_count': friends_count,
+            'vibes_count': 0,
+        }
+
+    def get_relationship(self, obj):
+        request = self.context.get('request')
+        me = request.user if request else None
+
+        if not me or me.id == obj.id:
+            return {
+                'status': 'self',
+                'request_id': None,
+                'is_friend': False,
+                'can_add_friend': False,
+                'can_unfriend': False,
+                'can_block': False,
+            }
+
+        relation = FriendRequest.objects.filter(
+            Q(sender=me, receiver=obj) | Q(sender=obj, receiver=me)
+        ).order_by('-updated_at').first()
+
+        if not relation:
+            return {
+                'status': 'none',
+                'request_id': None,
+                'is_friend': False,
+                'can_add_friend': True,
+                'can_unfriend': False,
+                'can_block': True,
+            }
+
+        if relation.status == 'accepted':
+            return {
+                'status': 'friends',
+                'request_id': relation.id,
+                'is_friend': True,
+                'can_add_friend': False,
+                'can_unfriend': True,
+                'can_block': True,
+            }
+
+        if relation.status == 'pending':
+            if relation.sender_id == me.id:
+                status_value = 'request_sent'
+            else:
+                status_value = 'request_received'
+
+            return {
+                'status': status_value,
+                'request_id': relation.id,
+                'is_friend': False,
+                'can_add_friend': False,
+                'can_unfriend': False,
+                'can_block': True,
+            }
+
+        if relation.status == 'blocked':
+            return {
+                'status': 'blocked',
+                'request_id': relation.id,
+                'is_friend': False,
+                'can_add_friend': False,
+                'can_unfriend': False,
+                'can_block': False,
+            }
+
+        return {
+            'status': relation.status,
+            'request_id': relation.id,
+            'is_friend': False,
+            'can_add_friend': False,
+            'can_unfriend': False,
+            'can_block': True,
+        }
 # ─── Rooms ────────────────────────────────────────────────────────────────────
 
 class RoomMembershipSerializer(serializers.ModelSerializer):

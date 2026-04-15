@@ -2,7 +2,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
+from .views import BlockUserView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
 from .views import UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, VerifyResetCodeView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
@@ -10,7 +10,7 @@ from .extend_schema import token_refresh_schema
 
 # ─── Friends ──────────────────────────────────────────────────────────────────
 from .views_friends import (
-    SendFriendRequestView, FriendRequestDetailView,
+    FriendProfileView, SendFriendRequestView, FriendRequestDetailView,
     FriendListView, PendingFriendRequestsView, SentFriendRequestsView,
     RemoveFriendView, UserSearchView,
 )
@@ -62,7 +62,9 @@ urlpatterns = [
     path('friends/requests/pending/', PendingFriendRequestsView.as_view(), name='friend-requests-pending'),
     path('friends/requests/sent/', SentFriendRequestsView.as_view(), name='friend-requests-sent'),
     path('friends/<int:user_id>/', RemoveFriendView.as_view(), name='friend-remove'),
-
+    path('friends/profile/<int:user_id>/', FriendProfileView.as_view(), name='friend-profile'),
+    path('friends/block/<int:user_id>/', BlockUserView.as_view(), name='friend-block'),
+    
     # ── User search ───────────────────────────────────────────────────────────
     path('users/search/', UserSearchView.as_view(), name='user-search'),
     path('users/', UserListView.as_view(), name='user-list'),
