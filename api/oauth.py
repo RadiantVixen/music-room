@@ -7,13 +7,16 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
 import requests
-from .serializers import SocialLoginSerializer, TokenResponseSerializer
+from .serializers import SocialLoginSerializer, UserSerializer
 from .extend_schema import social_login_schema
 
 User = get_user_model()
 
 
 def verify_google_id_token(token):
+    if not settings.google_client_id or settings.google_client_id.startswith('your-'):
+        return None, 'Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
+
     try:
         idinfo = id_token.verify_oauth2_token(
             token,
@@ -44,6 +47,9 @@ def verify_google_id_token(token):
 def verify_facebook_token(token):
     app_id = settings.facebook_client_id
     app_secret = settings.facebook_client_secret
+
+    if not app_id or not app_secret or app_id.startswith('your-') or app_secret.startswith('your-'):
+        return None, 'Facebook OAuth is not configured. Set FACEBOOK_OAUTH_CLIENT_ID and FACEBOOK_OAUTH_CLIENT_SECRET.'
 
     app_token = f"{app_id}|{app_secret}"
 
@@ -115,7 +121,14 @@ class SocialLoginView(APIView):
 
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        })
+        return Response(
+            {
+                'message': 'OAuth login successful.',
+                'data': {
+                    'user': UserSerializer(user, context={'request': request}).data,
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from .friends_schema import *
 
 from .models import CustomUser, FriendRequest, FriendRequestStatus, ActionLog
 from .serializers import (
@@ -24,7 +25,7 @@ from .serializers import (
 )
 from .logging_utils import log_action
 
-
+@send_request_schema
 class SendFriendRequestView(APIView):
     """POST /api/friends/request/ — send a friend request to another user."""
     permission_classes = [IsAuthenticated]
@@ -67,7 +68,7 @@ class SendFriendRequestView(APIView):
         log_action(request, 'friend_request_sent', f'To user {receiver_id}')
         return Response(FriendRequestSerializer(fr).data, status=status.HTTP_201_CREATED)
 
-
+@respond_request_schema
 class FriendRequestDetailView(APIView):
     """
     GET    /api/friends/request/<pk>/  — get request detail
@@ -112,7 +113,7 @@ class FriendRequestDetailView(APIView):
         log_action(request, 'friend_request_cancelled', f'Request id={pk}')
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
+@friends_list_schema
 class FriendListView(APIView):
     """GET /api/friends/ — list all accepted friends."""
     permission_classes = [IsAuthenticated]
@@ -132,7 +133,7 @@ class FriendListView(APIView):
         serializer = PublicUserSerializer(friends, many=True, context={'request': request})
         return Response(serializer.data)
 
-
+@pending_requests_schema
 class PendingFriendRequestsView(APIView):
     """GET /api/friends/requests/pending/ — incoming pending requests."""
     permission_classes = [IsAuthenticated]
@@ -145,7 +146,7 @@ class PendingFriendRequestsView(APIView):
         ).select_related('sender__profile')
         return Response(FriendRequestSerializer(pending, many=True).data)
 
-
+@sent_requests_schema
 class SentFriendRequestsView(APIView):
     """GET /api/friends/requests/sent/ — requests sent by the current user."""
     permission_classes = [IsAuthenticated]
@@ -158,7 +159,7 @@ class SentFriendRequestsView(APIView):
         ).select_related('receiver__profile')
         return Response(FriendRequestSerializer(sent, many=True).data)
 
-
+@remove_friend_schema
 class RemoveFriendView(APIView):
     """DELETE /api/friends/<user_id>/ — remove a friend (unfriend)."""
     permission_classes = [IsAuthenticated]
@@ -178,7 +179,7 @@ class RemoveFriendView(APIView):
         log_action(request, 'friend_removed', f'Removed user {user_id}')
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
+@search_users_schema
 class UserSearchView(APIView):
     """
     GET /api/users/search/?q=<query>

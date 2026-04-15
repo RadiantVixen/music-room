@@ -1,0 +1,8 @@
+ Network music-room_transcendence  Creating
+ Network music-room_transcendence  Created
+ Container music-room-auth-postgres-1  Creating
+ Container music-room-auth-postgres-1  Created
+ Container music-room-auth-service-1  Creating
+ Container music-room-auth-service-1  Created
+Attaching to auth-service-1
+[Kauth-service-1 exited with code 137

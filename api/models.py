@@ -42,6 +42,38 @@ class Profile(models.Model):
         return f"Profile of {self.user.username}"
 
 
+import uuid
+from datetime import timedelta
+from django.conf import settings
+
+class PasswordResetCode(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='password_reset_codes'
+    )
+    email = models.EmailField()
+    code = models.CharField(max_length=6)
+    reset_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+
+    is_verified = models.BooleanField(default=False)
+    is_used = models.BooleanField(default=False)
+
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField()
+    verified_at = models.DateTimeField(null=True, blank=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"{self.email} - {self.code}"
 # ─── Music Preferences ────────────────────────────────────────────────────────
 
 class MusicPreferences(models.Model):
@@ -217,6 +249,17 @@ class ActionLog(models.Model):
 
     def __str__(self):
         return f"[{self.action}] user={self.user_id} @ {self.created_at}"
+
+
+@receiver(post_save, sender=CustomUser)
+def ensure_user_profile(sender, instance, created, **kwargs):
+    if created:
+        Profile.objects.get_or_create(user=instance)
+
+
+@receiver(post_save, sender=CustomUser)
+def save_user_profile(sender, instance, **kwargs):
+    Profile.objects.get_or_create(user=instance)
 
 
 

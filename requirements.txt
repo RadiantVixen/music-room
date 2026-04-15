@@ -10,3 +10,6 @@ cryptography
 drf-spectacular
 drf-spectacular-sidecar
 google-auth
+daphne>=4.0
+channels>=4.0
+channels-redis>=4.1

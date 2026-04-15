@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import CustomUser, Profile, MusicPreferences, FriendRequest, Room, RoomMembership
 from django.utils.text import slugify
+from django.db.models import Q
 import re
 
 
@@ -55,10 +56,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text='Your full name (used to generate username).',
     )
-    phone = serializers.CharField(
-        write_only=True,
-        help_text='Your phone number (required).',
-    )
+    # phone = serializers.CharField(
+    #     write_only=True,
+    #     help_text='Your phone number (required).',
+    # )
     password = serializers.CharField(
         write_only=True,
         style={'input_type': 'password'},
@@ -72,7 +73,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['full_name', 'phone', 'email', 'password', 'confirm_password']
+        fields = ['full_name', 'email', 'password', 'confirm_password']
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value).exists():
@@ -89,7 +90,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         full_name = validated_data.pop('full_name')
-        phone = validated_data.pop('phone', '')
+        # phone = validated_data.pop('phone', '')
         validated_data.pop('confirm_password', None)
         email = validated_data['email']
 
@@ -106,13 +107,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.username = f"{user.id}{safe_name}"
         user.save(update_fields=['username'])
 
-        # Save phone to profile
-        try:
-            profile = user.profile
-            profile.phone = phone
-            profile.save(update_fields=['phone'])
-        except Exception:
-            pass  # Profile may not exist yet in all edge cases
+        profile, _ = Profile.objects.get_or_create(user=user)
+        # profile.phone = phone
+        # profile.save(update_fields=['phone'])
 
         return user
 
@@ -128,12 +125,25 @@ class TokenRefreshSerializer(serializers.Serializer):
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
-    """Send password reset email."""
     email = serializers.EmailField(help_text='The email address linked to your account')
 
 
+class VerifyResetCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField(help_text='The email address linked to your account')
+    code = serializers.CharField(
+        min_length=6,
+        max_length=6,
+        help_text='6-digit reset code sent by email',
+    )
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('Code must contain only digits.')
+        return value
+
+
 class ResetPasswordSerializer(serializers.Serializer):
-    """Reset password using the link from the email."""
+    reset_token = serializers.UUIDField(help_text='Temporary reset token returned after code verification')
     password = serializers.CharField(
         write_only=True,
         style={'input_type': 'password'},
@@ -152,7 +162,6 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
         return attrs
-
 
 class UpdateProfileSerializer(serializers.Serializer):
     """Patch the authenticated user's profile. All fields optional."""
@@ -208,86 +217,108 @@ class ProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.avatar.url)
         return None
 
+class UserStatsSerializer(serializers.Serializer):
+    rooms_count = serializers.IntegerField()
+    friends_count = serializers.IntegerField()
+    vibes_count = serializers.IntegerField()
+
+
+class NestedMusicPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MusicPreferences
+        fields = ['favorite_genres', 'favorite_artists', 'favorite_tracks', 'updated_at']
 
 class UserSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer(required=False)
+    profile = ProfileSerializer(read_only=True)
     password = serializers.CharField(write_only=True, required=False)
     username = serializers.CharField(required=False)
     first_name = serializers.CharField(required=False, allow_blank=True)
 
+    music_preferences = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'first_name', 'email', 'password', 'role', 'profile']
-        read_only_fields = ['id', 'role']
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'email',
+            'password',
+            'role',
+            'profile',
+            'music_preferences',
+            'stats',
+        ]
+        read_only_fields = ['id', 'role', 'music_preferences', 'stats']
 
-    def to_internal_value(self, data):
-        """
-        Multipart form sends profile fields as 'profile.phone', 'profile.avatar' etc.
-        Rebuild the nested 'profile' dict before standard validation runs.
-        """
-        mutable = data.copy() if hasattr(data, 'copy') else dict(data)
-        profile_dict = {}
-        keys_to_remove = []
-        for key in list(mutable.keys()):
-            if key.startswith('profile.'):
-                field_name = key[len('profile.'):]
-                profile_dict[field_name] = mutable[key]
-                keys_to_remove.append(key)
-        for k in keys_to_remove:
-            del mutable[k]
-        if profile_dict:
-            # Merge with any already-nested profile dict
-            existing = mutable.get('profile', {})
-            if not isinstance(existing, dict):
-                existing = {}
-            existing.update(profile_dict)
-            mutable['profile'] = existing
-        return super().to_internal_value(mutable)
+    def get_music_preferences(self, obj):
+        try:
+            prefs = obj.profile.music_preferences
+            return NestedMusicPreferencesSerializer(prefs).data
+        except MusicPreferences.DoesNotExist:
+            return {
+                'favorite_genres': [],
+                'favorite_artists': [],
+                'favorite_tracks': [],
+                'updated_at': None,
+            }
 
-    # CREATE
-    def create(self, validated_data):
-        profile_data = validated_data.pop('profile', None)
-        password = validated_data.pop('password', None)
+    def get_stats(self, obj):
+        rooms_count = Room.objects.filter(owner=obj).count()
 
-        # Prevent users from setting privileged roles
-        if validated_data.get('role') in ['ADMIN', 'STAFF']:
-            raise serializers.ValidationError("You cannot assign this role manually.")
+        friends_count = FriendRequest.objects.filter(
+            status='accepted'
+        ).filter(
+            Q(sender=obj) | Q(receiver=obj)
+        ).count()
 
-        user = CustomUser(**validated_data)
-        if password:
-            user.set_password(password)
-        user.save()
-
-        # Auto-create profile
-        # Profile.objects.create(user=user, **(profile_data or {}))
-        return user
-
-    # UPDATE
+        return {
+            'rooms_count': rooms_count,
+            'friends_count': friends_count,
+            'vibes_count': 0,
+        }
     def update(self, instance, validated_data):
-        # Update top-level user fields
-        username = validated_data.get('username')
-        if username:
-            instance.username = username
-        email = validated_data.get('email')
-        if email:
-            instance.email = email
-        first_name = validated_data.get('first_name')
-        if first_name is not None:
-            instance.first_name = first_name
+        # ===== Update user fields =====
+        if 'username' in validated_data:
+            instance.username = validated_data['username']
+
+        if 'email' in validated_data:
+            instance.email = validated_data['email']
+
+        if 'first_name' in validated_data:
+            instance.first_name = validated_data['first_name']
+
         instance.save()
 
-        # Update profile fields (nested dict from to_internal_value)
-        profile_data = validated_data.get('profile', {})
+        # ===== 🔥 Extract profile data manually =====
+        request = self.context.get('request')
+        profile_data = {}
+
+        if request:
+            # Case 1: "profile.bio"
+            for key, value in request.data.items():
+                if key.startswith('profile.'):
+                    field = key.split('profile.')[1]
+                    profile_data[field] = value
+
+            # Case 2: nested JSON { profile: { bio: ... } }
+            if 'profile' in request.data and isinstance(request.data['profile'], dict):
+                profile_data.update(request.data['profile'])
+
+        # ===== Update profile =====
         profile = instance.profile
-        for field in ('bio', 'phone', 'location'):
+
+        for field in ['bio', 'phone', 'location']:
             if field in profile_data:
                 setattr(profile, field, profile_data[field])
+
         if 'avatar' in profile_data and profile_data['avatar']:
             profile.avatar = profile_data['avatar']
+
         profile.save()
+
         return instance
-
-
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(

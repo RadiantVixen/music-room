@@ -28,6 +28,7 @@ ALLOWED_HOSTS = ['*']  if DEBUG else ALLOWED_HOSTS  # allow all in debug, restri
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -36,7 +37,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'channels',
     'api',
+    'events',
+    'playlists',
+    'delegation',
     'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
@@ -72,6 +77,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'auth.wsgi.application'
+ASGI_APPLICATION = 'auth.asgi.application'
+
+# Channel layers — in-memory for dev, Redis for production
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(os.getenv('REDIS_HOST', 'redis'), int(os.getenv('REDIS_PORT', 6379)))],
+        },
+    } if os.getenv('REDIS_HOST') else {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # Database
@@ -79,7 +97,7 @@ WSGI_APPLICATION = 'auth.wsgi.application'
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": os.getenv("DJANGO_DATABASE_ENGINE", "django.db.backends.postgresql"),
         "NAME": os.getenv("POSTGRES_DB", "postgres"),
         "USER": os.getenv("POSTGRES_USER", "postgres"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
@@ -203,15 +221,32 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # CORS — restrict to explicit origins (never use CORS_ALLOW_ALL_ORIGINS=True in production)
 # Default allows both 8080 (nginx-served Flutter web) and 8081 (local dev)
+CORS_ALLOW_ALL_ORIGINS = True
 _cors_defaults = 'http://localhost:8080,http://localhost:8081,http://localhost:9090'
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
 
-google_client_id = os.getenv("GOOGLE_CLIENT_ID", "default_google_client_id")
-google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "default_google_client_secret")
-facebook_client_id = os.getenv("FACEBOOK_CLIENT_ID", "default_facebook_client_id")
-facebook_client_secret = os.getenv("FACEBOOK_CLIENT_SECRET", "default_facebook_client_secret")
+google_client_id = (
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    or os.getenv("GOOGLE_CLIENT_ID")
+    or ""
+)
+google_client_secret = (
+    os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+    or os.getenv("GOOGLE_CLIENT_SECRET")
+    or ""
+)
+facebook_client_id = (
+    os.getenv("FACEBOOK_OAUTH_CLIENT_ID")
+    or os.getenv("FACEBOOK_CLIENT_ID")
+    or ""
+)
+facebook_client_secret = (
+    os.getenv("FACEBOOK_OAUTH_CLIENT_SECRET")
+    or os.getenv("FACEBOOK_CLIENT_SECRET")
+    or ""
+)
 
 
 
@@ -241,6 +276,9 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Profile', 'description': 'Get and update the authenticated user profile'},
         {'name': 'Password', 'description': 'Change, forgot and reset password'},
         {'name': 'OAuth', 'description': 'Social login (Google / Facebook)'},
+        {'name': 'Events – Track Vote', 'description': 'Suggest tracks and vote in vote-type rooms'},
+        {'name': 'Playlists', 'description': 'Collaborative playlist editing in playlist-type rooms'},
+        {'name': 'Delegation', 'description': 'Device control delegation in delegation-type rooms'},
     ],
 
     # Security scheme — tells Swagger UI to send Bearer tokens

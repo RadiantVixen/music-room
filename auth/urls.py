@@ -23,6 +23,9 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
+    path('api/events/', include('events.urls')),
+    path('api/playlists/', include('playlists.urls')),
+    path('api/delegation/', include('delegation.urls')),
 ]
 
 if settings.DEBUG:
