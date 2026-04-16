@@ -5,7 +5,6 @@ echo "Applying database migrations..."
 python manage.py makemigrations
 python manage.py makemigrations api
 python manage.py makemigrations events
-python manage.py makemigrations playlists
 python manage.py makemigrations delegation
 python manage.py migrate
 

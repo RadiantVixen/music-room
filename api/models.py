@@ -3,6 +3,9 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import uuid
+from datetime import timedelta
+from django.conf import settings
 
 
 class UserRole(models.TextChoices):
@@ -26,13 +29,17 @@ class CustomUser(AbstractUser):
         return self.email
 
 
-
 class Profile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=255, blank=True)
     provider = models.CharField(max_length=50, blank=True, null=True)  # 'google', 'facebook', etc.
+    
+    # Standard image upload for local avatars
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    # Added for easy frontend mock data & external Spotify/Google avatars
+    avatar_url = models.URLField(blank=True, null=True, default='https://i.pravatar.cc/100')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -41,10 +48,6 @@ class Profile(models.Model):
     def __str__(self):
         return f"Profile of {self.user.username}"
 
-
-import uuid
-from datetime import timedelta
-from django.conf import settings
 
 class PasswordResetCode(models.Model):
     user = models.ForeignKey(
@@ -74,6 +77,8 @@ class PasswordResetCode(models.Model):
 
     def __str__(self):
         return f"{self.email} - {self.code}"
+
+
 # ─── Music Preferences ────────────────────────────────────────────────────────
 
 class MusicPreferences(models.Model):
@@ -143,7 +148,6 @@ class RoomLicenseType(models.TextChoices):
 class RoomType(models.TextChoices):
     VOTE = 'vote', 'Music Track Vote'
     DELEGATION = 'delegation', 'Music Control Delegation'
-    PLAYLIST = 'playlist', 'Music Playlist Editor'
 
 
 class Room(models.Model):
@@ -167,6 +171,14 @@ class Room(models.Model):
         choices=RoomLicenseType.choices,
         default=RoomLicenseType.DEFAULT,
     )
+    
+    # --- New fields added to support Frontend Mock Data ---
+    cover_image = models.URLField(blank=True, null=True, help_text="URL for the room's cover art")
+    is_live = models.BooleanField(default=False, help_text="Is the room currently active/live?")
+    genres = models.JSONField(default=list, blank=True, help_text='List of genres e.g., ["Pop", "EDM"]')
+    participant_count = models.IntegerField(default=0, help_text="Number of listeners currently in the room")
+    # ------------------------------------------------------
+
     # Location / time restriction (used when license_type == LOCATION)
     geo_lat = models.FloatField(null=True, blank=True, help_text='Latitude for location restriction')
     geo_lon = models.FloatField(null=True, blank=True, help_text='Longitude for location restriction')
@@ -260,7 +272,3 @@ def ensure_user_profile(sender, instance, created, **kwargs):
 @receiver(post_save, sender=CustomUser)
 def save_user_profile(sender, instance, **kwargs):
     Profile.objects.get_or_create(user=instance)
-
-
-
-

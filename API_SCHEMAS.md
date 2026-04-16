@@ -1,8 +1,10 @@
-# API Schemas - Music Room Backend
+# API Schemas — Music Room Backend
 
-**Document generated:** April 14, 2026
-
-This document provides controller-by-controller API schemas organized by module. Each schema includes endpoint details, authentication requirements, input/output specifications, and visual flowcharts.
+**Document generated:** April 2026  
+**Backend:** Django REST Framework + DRF Spectacular + Django Channels  
+**Database:** PostgreSQL  
+**Auth:** JWT RS256 (djangorestframework-simplejwt)  
+**Real-time:** Django Channels (WebSocket) + Redis channel layer
 
 ---
 
@@ -18,9 +20,11 @@ This document provides controller-by-controller API schemas organized by module.
 8. [Admin Controller](#admin-controller)
 9. [Music Preferences Controller](#music-preferences-controller)
 10. [Music Track Vote Controller](#music-track-vote-controller)
-11. [Music Playlist Editor Controller](#music-playlist-editor-controller)
-12. [Music Control Delegation Controller](#music-control-delegation-controller)
-13. [WebSocket Endpoints](#websocket-endpoints)
+11. [Music Control Delegation Controller](#music-control-delegation-controller)
+12. [WebSocket Endpoints](#websocket-endpoints)
+13. [License Management](#license-management)
+14. [Summary Tables](#summary-tables)
+15. [Common Response Codes](#common-response-codes)
 
 ---
 
@@ -30,83 +34,77 @@ This document provides controller-by-controller API schemas organized by module.
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/token/` | POST | Obtain access & refresh tokens | ❌ No | `email`, `password` | `access`, `refresh` |
-| `/api/token/refresh/` | POST | Refresh expired access token | ❌ No | `refresh` (token) | `access` (new token) |
-| `/api/logout/` | POST | Revoke refresh token & log out | ✅ Yes | `refresh_token` | `{ message }` |
+| Endpoint | Method | Auth Required | Input | Output |
+|----------|--------|----------------|-------|--------|
+| `/api/token/` | POST | ❌ No | `email`, `password` | `access`, `refresh` |
+| `/api/token/refresh/` | POST | ❌ No | `refresh` | `access` (new) |
+| `/api/logout/` | POST | ✅ Yes | `refresh_token` | `{ message }` |
 
 ### Details
 
 **POST /api/token/**
-- **Purpose:** User login with email/password credentials
+- **Purpose:** Login with email/password — returns JWT pair
+- **Rate Limit:** 10 per minute per IP
 - **Request Body:**
   ```json
   {
     "email": "user@example.com",
-    "password": "password123"
+    "password": "YourPass1!"
   }
   ```
 - **Success Response (200 OK):**
   ```json
   {
-    "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
+    "access": "eyJ0eXAiOiJKV1Qi...",
+    "refresh": "eyJ0eXAiOiJKV1Qi..."
   }
   ```
-- **Rate Limit:** 5 per minute per IP (login throttle)
-- **Log:** `login` action recorded with user ID
+- **JWT Claims:** `sub` (user id), `email`, `role`
+- **Algorithm:** RS256 — asymmetric signing
+- **Log:** `login` action recorded
 
 **POST /api/token/refresh/**
-- **Purpose:** Obtain new access token using refresh token
+- **Purpose:** Get a new access token before it expires
 - **Request Body:**
   ```json
-  {
-    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-  }
+  { "refresh": "eyJ0eXAiOiJKV1Qi..." }
   ```
 - **Success Response (200 OK):**
   ```json
-  {
-    "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-  }
+  { "access": "eyJ0eXAiOiJKV1Qi..." }
   ```
+- **Notes:** Rotation is enabled — a new refresh token is also returned. The old refresh token is blacklisted immediately.
 
 **POST /api/logout/**
-- **Purpose:** Invalidate refresh token (logout)
-- **Auth:** Bearer token (JWT Access)
+- **Auth:** `Authorization: Bearer <access>`
 - **Request Body:**
   ```json
-  {
-    "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-  }
+  { "refresh_token": "eyJ0eXAiOiJKV1Qi..." }
   ```
 - **Success Response (200 OK):**
   ```json
-  {
-    "message": "Successfully logged out."
-  }
+  { "message": "Successfully logged out." }
   ```
-- **Log:** `logout` action recorded with user ID
+- **Log:** `logout` action recorded
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Initiates Login"] -->|POST /api/token/| B["Validate Credentials"]
-    B -->|Success| C["Generate JWT Tokens"]
-    C -->|Return| D["Access + Refresh Tokens"]
-    B -->|Failure| E["401 Unauthorized"]
-    
-    D -->|Token Expires| F["User Initiates Refresh"]
-    F -->|POST /api/token/refresh/| G["Validate Refresh Token"]
-    G -->|Valid| H["Generate New Access Token"]
-    H -->|Return| I["New Access Token"]
-    G -->|Invalid/Expired| J["401 Unauthorized"]
-    
-    D -->|User Logs Out| K["POST /api/logout/"]
-    K -->|Blacklist Token| L["Token Revoked"]
-    L -->|Return| M["200 Success Message"]
+    A["User: POST /api/token/"] --> B["Validate Credentials"]
+    B -->|Fail| C["401 Unauthorized"]
+    B -->|Success| D["Generate JWT Pair"]
+    D --> E["Return access + refresh"]
+
+    E -->|Token Expires| F["POST /api/token/refresh/"]
+    F --> G["Validate Refresh Token"]
+    G -->|Invalid| H["401 Unauthorized"]
+    G -->|Valid| I["Rotate → New Pair"]
+    I --> J["Return New access"]
+
+    E -->|Logout| K["POST /api/logout/"]
+    K --> L["Blacklist Refresh Token"]
+    L --> M["200 Logged Out"]
 ```
 
 ---
@@ -117,54 +115,60 @@ graph TD
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/signup/` | POST | Create new user account | ❌ No | User data (email, password, etc.) | `{ message }` |
+| Endpoint | Method | Auth Required | Input | Output |
+|----------|--------|----------------|-------|--------|
+| `/api/signup/` | POST | ❌ No | `full_name`, `email`, `password`, `confirm_password` | `{ message, data }` |
 
 ### Details
 
 **POST /api/signup/**
-- **Purpose:** User registration with email/password
+- **Rate Limit:** 10 per minute per IP
 - **Request Body:**
   ```json
   {
-    "email": "newuser@example.com",
-    "password": "password123",
-    "password_confirm": "password123",
-    "first_name": "John",
-    "last_name": "Doe",
-    "username": "johndoe"
+    "full_name": "John Doe",
+    "email": "john@example.com",
+    "password": "StrongPass1!",
+    "confirm_password": "StrongPass1!"
   }
   ```
+- **Password Rules:** ≥8 chars — at least 1 uppercase, 1 lowercase, 1 digit, 1 special character
 - **Success Response (201 Created):**
   ```json
   {
-    "message": "User registered successfully."
+    "message": "User registered successfully.",
+    "data": {
+      "user": {
+        "id": 7,
+        "username": "7johndoe",
+        "first_name": "John Doe",
+        "email": "john@example.com",
+        "role": "USER",
+        "profile": { "bio": "", "location": "", "avatar": null, "avatar_url": "https://i.pravatar.cc/100" },
+        "music_preferences": { "favorite_genres": [], "favorite_artists": [], "favorite_tracks": [] },
+        "stats": { "rooms_count": 0, "friends_count": 0, "vibes_count": 0 }
+      },
+      "access": "eyJ...",
+      "refresh": "eyJ..."
+    }
   }
   ```
 - **Error Responses:**
-  - `400 Bad Request` - Invalid data or password mismatch
-  - `409 Conflict` - Email/username already exists
-- **Rate Limit:** 3 per hour per IP (register throttle)
-- **Log:** `register` action recorded with new user ID
-- **Assumptions:**
-  - Email must be unique
-  - Password validation (strength, length) enforced
-  - Account is inactive until email verification (if applicable)
+  - `400` — Validation failure, password mismatch, or strength rule violation
+  - `400` — Email already in use
+- **Side Effects:** Profile row auto-created via `post_save` signal; username auto-generated as `<id><slugified-full-name>`
+- **Log:** `register` action recorded
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Submits Registration Form"] -->|POST /api/signup/| B["Validate Input"]
-    B -->|Validation Fails| C["400 Bad Request"]
-    B -->|Email Exists| D["409 Conflict"]
-    B -->|Valid| E["Create User Account"]
-    E -->|Create Profile| F["Account Created"]
-    F -->|Return| G["201 User Registered"]
-    
-    style A fill:#e1f5ff
-    style G fill:#c8e6c9
+    A["POST /api/signup/"] --> B["Validate Fields"]
+    B -->|Invalid| C["400 Bad Request"]
+    B -->|Email Exists| D["400 Email Taken"]
+    B -->|Valid| E["Create User + Profile"]
+    E --> F["Generate JWT Pair"]
+    F --> G["201 User + Tokens"]
 ```
 
 ---
@@ -175,207 +179,189 @@ graph TD
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/me/` | GET | Retrieve current user profile | ✅ Yes | None | User object |
-| `/api/me/` | PUT/PATCH | Update current user profile | ✅ Yes | User fields | Updated user object |
-| `/api/me/` | DELETE | Delete user account permanently | ✅ Yes | Bearer token | `{ message }` |
+| Endpoint | Method | Auth Required | Input | Output |
+|----------|--------|----------------|-------|--------|
+| `/api/me/` | GET | ✅ Yes | — | Full user object |
+| `/api/me/` | PATCH | ✅ Yes | Any user/profile fields | Updated user object |
+| `/api/me/` | DELETE | ✅ Yes | — | `{ detail }` |
 
 ### Details
 
 **GET /api/me/**
-- **Purpose:** Get authenticated user's profile with profile relation
-- **Auth:** Bearer token (JWT Access)
-- **Query Parameters:** None
 - **Success Response (200 OK):**
   ```json
   {
-    "id": 1,
-    "email": "user@example.com",
-    "username": "johndoe",
-    "first_name": "John",
-    "last_name": "Doe",
+    "id": 7,
+    "username": "7johndoe",
+    "first_name": "John Doe",
+    "email": "john@example.com",
+    "role": "USER",
     "profile": {
-      "id": 1,
       "bio": "Music lover",
-      "avatar": "https://cdn.example.com/avatars/1.jpg",
-      "location": "San Francisco"
+      "location": "Casablanca",
+      "provider": null,
+      "phone": "+212600000000",
+      "phone_verified": false,
+      "avatar": "http://api.example.com/media/avatars/7.jpg",
+      "created_at": "2026-04-01T10:00:00Z",
+      "updated_at": "2026-04-14T18:00:00Z"
+    },
+    "music_preferences": {
+      "favorite_genres": ["jazz", "rock"],
+      "favorite_artists": ["Miles Davis"],
+      "favorite_tracks": [],
+      "updated_at": "2026-04-10T08:00:00Z"
+    },
+    "stats": {
+      "rooms_count": 3,
+      "friends_count": 12,
+      "vibes_count": 0
     }
   }
   ```
 
-**PUT/PATCH /api/me/**
-- **Purpose:** Update user profile (name, email, profile details, avatar)
-- **Auth:** Bearer token (JWT Access)
-- **Request Body (partial update):**
-  ```json
-  {
-    "first_name": "Jonathan",
-    "bio": "Updated bio",
-    "avatar": "<file-multipart>"
-  }
-  ```
-- **Success Response (200 OK):** Updated user object
-- **Supported Media:** Avatar upload via MultiPartParser, FormParser
+**PATCH /api/me/**
+- **Content-Type:** `application/json` or `multipart/form-data` (for avatar upload)
+- **Updatable fields:** `username`, `first_name`, `profile.bio`, `profile.phone`, `profile.location`, `profile.avatar`
+- **Profile fields can be sent as:**
+  - Flat keys: `profile.bio`, `profile.location`
+  - Nested JSON: `{ "profile": { "bio": "..." } }`
+- **Avatar:** JPEG / PNG / WEBP, max 2 MB — send as `multipart/form-data`
+- **Success Response (200 OK):** Updated user object (same shape as GET)
 
 **DELETE /api/me/**
-- **Purpose:** Permanently delete user account and all related data
-- **Auth:** Bearer token (JWT Access)
-- **Behavior:**
-  - Blacklist all outstanding refresh tokens
-  - Delete user record
-  - Cascade delete profile, memberships, friend requests, etc.
+- **Action:** Blacklists all outstanding refresh tokens, then hard-deletes the user row (cascade deletes profile, rooms, memberships, friend requests)
 - **Success Response (200 OK):**
   ```json
-  {
-    "detail": "Account deleted successfully."
-  }
-- **Notes:**
-  - This is a destructive operation
-  - All associated data is permanently deleted
-  - User cannot be recovered
+  { "detail": "Account deleted successfully." }
+  ```
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Requests Profile"] -->|GET /api/me/| B["Verify JWT Token"]
-    B -->|Invalid| C["401 Unauthorized"]
-    B -->|Valid| D["Fetch User + Profile"]
-    D -->|Return| E["200 User Object"]
-    
-    F["User Updates Profile"] -->|PUT/PATCH /api/me/| G["Verify JWT Token"]
-    G -->|Invalid| H["401 Unauthorized"]
-    G -->|Valid| I["Validate Update Data"]
-    I -->|Invalid| J["400 Bad Request"]
-    I -->|Valid| K["Update User Fields"]
-    K -->|Upload Avatar| L["Store File"]
-    L -->|Return| M["200 Updated Profile"]
-    
-    N["User Deletes Account"] -->|DELETE /api/me/| O["Verify JWT Token"]
-    O -->|Invalid| P["401 Unauthorized"]
-    O -->|Valid| Q["Blacklist All Tokens"]
-    Q -->|Delete User| R["Cascade Delete Relations"]
-    R -->|Return| S["200 Account Deleted"]
+    A["GET /api/me/"] --> B["Verify JWT"]
+    B -->|Invalid| C["401"]
+    B -->|Valid| D["Fetch User + Profile + Stats"]
+    D --> E["200 User Object"]
+
+    F["PATCH /api/me/"] --> G["Verify JWT"]
+    G -->|Invalid| H["401"]
+    G -->|Valid| I["Validate Fields"]
+    I -->|Invalid| J["400"]
+    I -->|Valid| K["Update User + Profile"]
+    K --> L["200 Updated User"]
+
+    M["DELETE /api/me/"] --> N["Verify JWT"]
+    N -->|Invalid| O["401"]
+    N -->|Valid| P["Blacklist Tokens"]
+    P --> Q["Delete User (cascade)"]
+    Q --> R["200 Account Deleted"]
 ```
 
 ---
 
 ## Password Controller
 
-**Endpoints:** `/api/forgot-password/`, `/api/reset-password/{uidb64}/{token}/`, `/api/deeplink/{uidb64}/{token}/`, `/api/change-password/`
+**Endpoints:** `/api/forgot-password/`, `/api/verify-reset-code/`, `/api/reset-password/`, `/api/change-password/`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/forgot-password/` | POST | Request password reset link | ❌ No | `email` | `{ message }` |
-| `/api/deeplink/{uidb64}/{token}/` | GET | Render password reset page | ❌ No | URL params | HTML form |
-| `/api/reset-password/{uidb64}/{token}/` | POST | Reset password with token | ❌ No | `password`, `confirm_password` | HTML success page |
-| `/api/change-password/` | POST | Change password (authenticated user) | ✅ Yes | Old & new password | `{ message }` |
+| Endpoint | Method | Auth Required | Input | Output |
+|----------|--------|----------------|-------|--------|
+| `/api/forgot-password/` | POST | ❌ No | `email` | `{ message }` |
+| `/api/verify-reset-code/` | POST | ❌ No | `email`, `code` (6 digits) | `{ reset_token }` |
+| `/api/reset-password/` | POST | ❌ No | `reset_token`, `password`, `confirm_password` | `{ message }` |
+| `/api/change-password/` | POST | ✅ Yes | `old_password`, `new_password`, `confirm_password`, `refresh_token` | `{ detail }` |
 
 ### Details
 
 **POST /api/forgot-password/**
-- **Purpose:** Initiate password reset flow
+- **Rate Limit:** 5 per minute per IP
+- **Request Body:**
+  ```json
+  { "email": "user@example.com" }
+  ```
+- **Success Response (200 OK):**
+  ```json
+  { "message": "If an account with that email exists, a 6-digit reset code has been sent." }
+  ```
+- **Security:** Always returns 200 even if the email doesn't exist (prevents enumeration)
+- **Side Effect:** Sends an email containing a **6-digit numeric code** valid for 15 minutes (max 5 attempts)
+
+**POST /api/verify-reset-code/**
+- **Purpose:** Validate the 6-digit code from the email; trade it for a `reset_token` UUID
 - **Request Body:**
   ```json
   {
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "code": "482913"
   }
   ```
 - **Success Response (200 OK):**
   ```json
   {
-    "message": "If an account with that email exists, a reset link has been sent."
+    "message": "Code verified. Use the reset_token to reset your password.",
+    "reset_token": "550e8400-e29b-41d4-a716-446655440000"
   }
   ```
-- **Security:**
-  - Always returns 200 (prevents email enumeration)
-  - Generates secure token via Django's `default_token_generator`
-  - Sends HTML email with reset link
-  - Token expires in 1 day (configurable)
-- **Rate Limit:** 3 per hour per IP (password_reset throttle)
+- **Error (400 Bad Request):** Invalid/expired code; too many attempts
 
-**GET /api/deeplink/{uidb64}/{token}/**
-- **Purpose:** Render password reset UI with both web form and deep link for mobile
-- **Response:** HTML page with:
-  - "Open in App" button (deep link: `myapp://ResetPassword/{uidb64}/{token}`)
-  - Manual password reset form pointing to `/api/reset-password/{uidb64}/{token}/`
-- **Behavior:** No validation at this stage; validation happens on POST to reset endpoint
-
-**POST /api/reset-password/{uidb64}/{token}/**
-- **Purpose:** Reset password with valid token
+**POST /api/reset-password/**
+- **Purpose:** Set a new password using the verified `reset_token`
 - **Request Body:**
   ```json
   {
-    "password": "newpassword123",
-    "confirm_password": "newpassword123"
+    "reset_token": "550e8400-e29b-41d4-a716-446655440000",
+    "password": "NewPass1!",
+    "confirm_password": "NewPass1!"
   }
   ```
-- **Token Validation:**
-  - Decode uidb64 to extract user ID
-  - Verify token is valid and not expired
-  - Return 400 if token invalid/expired
-- **Success Response:** HTML page displaying "Password reset successful 🎉"
-- **Error (400 Bad Request):**
+- **Success Response (200 OK):**
   ```json
-  {
-    "error": "Invalid or expired token."
-  }
+  { "message": "Password reset successfully. Please log in with your new password." }
   ```
+- **Error (400):** Token already used, expired, or passwords don't match
 
 **POST /api/change-password/**
-- **Purpose:** Authenticated user changes their password (requires old password)
-- **Auth:** Bearer token (JWT Access)
+- **Auth:** `Authorization: Bearer <access>`
 - **Request Body:**
   ```json
   {
-    "old_password": "currentpassword",
-    "new_password": "newpassword123",
-    "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..." (optional)
+    "old_password": "CurrentPass1!",
+    "new_password": "NewPass1!",
+    "confirm_password": "NewPass1!",
+    "refresh_token": "eyJ..."
   }
   ```
+  > `refresh_token` is **optional** — include it to blacklist the current session immediately (recommended for mobile)
 - **Success Response (200 OK):**
   ```json
-  {
-    "detail": "Password updated. Please log in again."
-  }
+  { "detail": "Password updated. Please log in again." }
   ```
-- **Behavior:**
-  - Verifies old password correctness
-  - Sets new password
-  - Optionally blacklists provided refresh token (mobile apps)
-  - User must log in again
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Forgot Password"] -->|POST /forgot-password/| B["Find User by Email"]
-    B -->|Not Found| C["200 (Security: No Info)"]
-    B -->|Found| D["Generate Reset Token + uidb64"]
-    D -->|Send Email| E["Email with Reset Link"]
-    E -->|User Clicks Link| F["GET /deeplink/uidb64/token/"]
-    F -->|Render| G["HTML: Web Form + Deep Link"]
-    
-    G -->|Mobile: Click 'Open in App'| H["Deep Link: myapp://ResetPassword/uidb64/token"]
-    G -->|Web: Submit Form| I["POST /reset-password/uidb64/token/"]
-    
-    I -->|Decode uidb64| J["Extract User ID"]
-    J -->|Validate Token| K{Token Valid?}
-    K -->|No| L["400 Invalid/Expired"]
-    K -->|Yes| M["Validate New Passwords"]
-    M -->|Invalid| N["400 Bad Request"]
-    M -->|Valid| O["Update User Password"]
-    O -->|Return| P["200 HTML Success Page"]
-    
-    Q["User Logged In"] -->|POST /change-password/| R["Verify JWT Token"]
-    R -->|Invalid| S["401 Unauthorized"]
-    R -->|Valid| T["Verify Old Password"]
-    T -->|Wrong| U["400 Wrong Password"]
-    T -->|Correct| V["Set New Password"]
-    V -->|Blacklist Token| W["200 Password Updated"]
+    A["POST /api/forgot-password/"] --> B["Find User by Email"]
+    B -->|Not Found| C["200 (silent — no info leak)"]
+    B -->|Found| D["Generate 6-digit Code"]
+    D --> E["Send Code by Email"]
+    E --> F["POST /api/verify-reset-code/"]
+    F --> G{"Code Valid?"}
+    G -->|No / Expired| H["400 Bad Request"]
+    G -->|Yes| I["Return reset_token UUID"]
+    I --> J["POST /api/reset-password/"]
+    J --> K{"Token Valid?"}
+    K -->|No| L["400 Bad Request"]
+    K -->|Yes| M["Set New Password"]
+    M --> N["200 Password Reset"]
+
+    O["POST /api/change-password/"] --> P["Verify JWT + Old Password"]
+    P -->|Wrong| Q["400 Wrong Password"]
+    P -->|Correct| R["Set New Password"]
+    R -->|Blacklist Token| S["200 Password Updated"]
 ```
 
 ---
@@ -386,538 +372,295 @@ graph TD
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/oauth/` | POST | Social login (Google, Facebook) | ❌ No | `provider`, `access_token` | `access`, `refresh` tokens |
+| Endpoint | Method | Auth Required | Input | Output |
+|----------|--------|----------------|-------|--------|
+| `/api/oauth/` | POST | ❌ No | `provider`, `token` | `access`, `refresh`, user |
 
 ### Details
 
 **POST /api/oauth/**
-- **Purpose:** Authenticate or register user via OAuth provider
-- **Supported Providers:** Google, Facebook
+- **Supported Providers:** `google`, `facebook`
+- **`google`** → send the **id_token** from Google Sign-In
+- **`facebook`** → send the **access_token** from Facebook Login
 - **Request Body:**
   ```json
   {
     "provider": "google",
-    "access_token": "<token-from-provider>"
+    "token": "<id_token or access_token from provider>"
   }
   ```
-- **Success Response (200/201 OK/Created):**
+- **Success Response (200 OK):**
   ```json
   {
-    "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-    "user": {
-      "id": 1,
-      "email": "user@gmail.com",
-      "first_name": "John"
+    "message": "OAuth login successful.",
+    "data": {
+      "user": { "id": 1, "email": "user@gmail.com", ... },
+      "access": "eyJ...",
+      "refresh": "eyJ..."
     }
   }
   ```
-- **Behavior:**
-  - Validates token with provider (Google OAuth, Facebook Graph API)
-  - Looks up user by email
-  - If user exists: returns tokens (login)
-  - If user not exists: creates account and returns tokens (registration)
-  - Links social account to user
-- **Configurations:**
-  - `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`
-  - `FACEBOOK_OAUTH_CLIENT_ID` / `FACEBOOK_OAUTH_CLIENT_SECRET`
-- **Error (400 Bad Request):**
-  - Invalid token
-  - Unsupported provider
-  - Token validation failed with provider
+- **Behaviour:** Verifies token with provider → looks up user by `email` → creates account if not found → returns JWT pair
+- **Config required:** `GOOGLE_OAUTH_CLIENT_ID`, `FACEBOOK_OAUTH_CLIENT_ID`, `FACEBOOK_OAUTH_CLIENT_SECRET`
+- **Error (400):** Invalid token, unsupported provider, email not verified (Google)
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Initiates OAuth Login"] -->|POST /api/oauth/| B["Validate Provider"]
-    B -->|Invalid Provider| C["400 Bad Request"]
-    B -->|Valid| D["Validate Token with Provider"]
-    D -->|Token Invalid| E["400 Invalid Token"]
-    D -->|Token Valid| F["Extract User Info"]
-    F -->|Email from Provider| G["Query User by Email"]
-    G -->|User Exists| H["Login Path"]
-    G -->|User Not Exists| I["Registration Path"]
-    
-    H -->|Generate Tokens| J["Return JWT Tokens"]
-    I -->|Create User + Profile| K["Generate Tokens"]
-    K -->|Return JWT Tokens| J
-    
-    style A fill:#e1f5ff
-    style J fill:#c8e6c9
+    A["POST /api/oauth/"] --> B{"Provider?"}
+    B -->|Unknown| C["400 Invalid provider"]
+    B -->|google| D["verify_oauth2_token (Google)"]
+    B -->|facebook| E["Graph API debug_token"]
+    D -->|Invalid| F["400 Invalid token"]
+    E -->|Invalid| F
+    D -->|Valid| G["Extract email"]
+    E -->|Valid| G
+    G --> H{"User exists?"}
+    H -->|Yes| I["Login path"]
+    H -->|No| J["Register + Profile"]
+    I --> K["Generate JWT Pair"]
+    J --> K
+    K --> L["200 Tokens + User"]
 ```
 
 ---
 
 ## Friends Controller
 
-**Endpoints:** `/api/friends/`, `/api/friends/request/`, `/api/friends/request/{pk}/`, `/api/friends/requests/pending/`, `/api/friends/requests/sent/`, `/api/friends/{user_id}/`, `/api/users/search/`
+**Endpoints:** `/api/friends/*`, `/api/users/search/`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/friends/` | GET | List accepted friends | ✅ Yes | None | Array of users |
-| `/api/friends/request/` | POST | Send friend request | ✅ Yes | `receiver_id` | FriendRequest object |
-| `/api/friends/request/{pk}/` | GET | Get request details | ✅ Yes | None | FriendRequest object |
-| `/api/friends/request/{pk}/` | PATCH | Accept/decline/block request | ✅ Yes | `action` (accept/decline/block) | Updated FriendRequest |
-| `/api/friends/request/{pk}/` | DELETE | Cancel sent request | ✅ Yes | None | 204 No Content |
-| `/api/friends/requests/pending/` | GET | Incoming pending requests | ✅ Yes | None | Array of FriendRequest |
-| `/api/friends/requests/sent/` | GET | Sent pending requests | ✅ Yes | None | Array of FriendRequest |
-| `/api/friends/{user_id}/` | DELETE | Remove friend (unfriend) | ✅ Yes | None | 204 No Content |
-| `/api/users/search/` | GET | Search users by name/email | ✅ Yes | `q` (query ≥2 chars) | Array of users |
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/friends/` | GET | ✅ | — | Paginated friends list |
+| `/api/friends/request/` | POST | ✅ | `receiver_id` | FriendRequest |
+| `/api/friends/request/<pk>/` | GET | ✅ | — | FriendRequest |
+| `/api/friends/request/<pk>/` | PATCH | ✅ | `action` (accept/decline/block) | Updated FriendRequest |
+| `/api/friends/request/<pk>/` | DELETE | ✅ | — | 204 No Content |
+| `/api/friends/requests/pending/` | GET | ✅ | — | Paginated incoming requests |
+| `/api/friends/requests/sent/` | GET | ✅ | — | Paginated outgoing requests |
+| `/api/friends/<user_id>/` | DELETE | ✅ | — | 204 No Content |
+| `/api/users/search/` | GET | ✅ | `?q=<query>` (min 2 chars) | Paginated user list |
 
-### Details
+### Key Behaviours
 
 **POST /api/friends/request/**
-- **Purpose:** Send friend request to another user
-- **Request Body:**
-  ```json
-  {
-    "receiver_id": 42
-  }
-  ```
-- **Validations:**
-  - Cannot send to self
-  - Cannot send duplicate pending requests
-  - Cannot send if already friends
-  - Cannot send if blocked
-- **Logic:**
-  - If declined request exists: reset to pending
-  - Otherwise: create new pending request
-- **Success Response (201 Created / 200 OK):** FriendRequest object
-- **Log:** `friend_request_sent` with receiver_id
+```json
+{ "receiver_id": 42 }
+```
+- Cannot send to self, to an already-accepted friend, or to a blocked/pending target
+- If a declined request exists → resets it to `pending`
+- **Log:** `friend_request_sent`
 
-**GET /api/friends/request/{pk}/**
-- **Purpose:** Get details of a specific friend request
-- **Auth:** Sender or receiver can view
-- **Success Response (200 OK):** FriendRequest object with full details
+**PATCH /api/friends/request/\<pk\>/**
+```json
+{ "action": "accept" }
+```
+- `action` choices: `accept`, `decline`, `block`
+- Receiver only — sender cannot respond to their own request
+- **Log:** `friend_request_accepted | declined | blocked`
 
-**PATCH /api/friends/request/{pk}/**
-- **Purpose:** Accept, decline, or block a friend request
-- **Auth:** Receiver only
-- **Request Body:**
-  ```json
-  {
-    "action": "accept"  // or "decline", "block"
-  }
-  ```
-- **Success Response (200 OK):** Updated FriendRequest object
-- **Status Values:** ACCEPTED, DECLINED, BLOCKED, PENDING
-- **Logs:**
-  - `friend_request_accepted`
-  - `friend_request_declined`
-  - `friend_request_blocked`
+**FriendRequest Response Object:**
+```json
+{
+  "id": 10,
+  "sender_id": 1, "sender_email": "a@x.com", "sender_username": "alice",
+  "receiver_id": 2, "receiver_email": "b@x.com", "receiver_username": "bob",
+  "status": "pending",
+  "created_at": "2026-04-14T10:00:00Z",
+  "updated_at": "2026-04-14T10:00:00Z"
+}
+```
 
-**DELETE /api/friends/request/{pk}/**
-- **Purpose:** Cancel a pending friend request
-- **Auth:** Sender only, must be PENDING status
-- **Success Response (204 No Content):**
-- **Log:** `friend_request_cancelled`
-
-**GET /api/friends/**
-- **Purpose:** List all accepted friends
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "id": 2,
-      "username": "janedoe",
-      "first_name": "Jane",
-      "email": "jane@example.com"
-    },
-    ...
-  ]
-  ```
-- **Logic:** Finds all ACCEPTED FriendRequests where user is sender OR receiver
-
-**GET /api/friends/requests/pending/**
-- **Purpose:** List incoming pending friend requests (where user is receiver)
-- **Success Response (200 OK):** Array of FriendRequest objects with sender info
-
-**GET /api/friends/requests/sent/**
-- **Purpose:** List outgoing pending friend requests (where user is sender)
-- **Success Response (200 OK):** Array of FriendRequest objects with receiver info
-
-**DELETE /api/friends/{user_id}/**
-- **Purpose:** Remove (unfriend) a friend
-- **Validations:** FriendRequest must exist with ACCEPTED status
-- **Success Response (204 No Content):**
-- **Log:** `friend_removed` with user_id
-
-**GET /api/users/search/**
-- **Purpose:** Search for users by username, first_name, or email
-- **Query Parameters:**
-  - `q` (required, min 2 chars): search query
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "id": 5,
-      "username": "johnsearch",
-      "first_name": "John",
-      "email": "john.search@example.com"
-    }
-  ]
-  ```
-- **Behavior:**
-  - Case-insensitive search
-  - Returns max 20 results
-  - Excludes current user
-  - Returns public profile info only
+**GET /api/users/search/?q=john**
+- Case-insensitive match on `username`, `first_name`, `email`
+- Returns max 20 results; excludes the requesting user
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User A: View Friends List"] -->|GET /api/friends/| B["Query Accepted Requests"]
-    B -->|Find Bidirectional| C["Return Friends Array"]
-    
-    D["User A: Send Friend Request"] -->|POST /friends/request/| E["Validate Receiver"]
-    E -->|Self Request| F["400 Bad Request"]
-    E -->|Already Friends| G["400 Bad Request"]
-    E -->|Blocked| H["400 Bad Request"]
-    E -->|Pending Exists| I["400 Bad Request"]
-    E -->|Valid| J["Create/Update FriendRequest"]
-    J -->|Status=PENDING| K["201 FriendRequest Object"]
-    
-    L["User B: View Pending Requests"] -->|GET /friends/requests/pending/| M["Query Received PENDING"]
-    M -->|Return| N["Array of Requests"]
-    
-    O["User B: Accept Request"] -->|PATCH /friends/request/pk/| P["Verify Receiver"]
-    P -->|Valid| Q["Update Status=ACCEPTED"]
-    Q -->|Return| R["200 Updated Request"]
-    
-    S["User A: Remove Friend"] -->|DELETE /friends/user_id/| T["Verify ACCEPTED"]
-    T -->|Found| U["Delete FriendRequest"]
-    U -->|Return| V["204 No Content"]
-    
-    W["User A: Search Users"] -->|GET /users/search/?q=john| X["Validate Query ≥2 chars"]
-    X -->|Too Short| Y["400 Bad Request"]
-    X -->|Valid| Z["Search by Username/Email"]
-    Z -->|Return Max 20| AA["Array of Users"]
+    A["POST /api/friends/request/"] --> B["Validate receiver_id"]
+    B -->|Self / Blocked / Duplicate| C["400 Bad Request"]
+    B -->|Valid| D["Create / Reset FriendRequest → PENDING"]
+    D --> E["201 FriendRequest"]
+
+    F["PATCH /api/friends/request/pk/"] --> G["Verify Receiver"]
+    G -->|Not Receiver| H["403 Forbidden"]
+    G -->|OK| I["Update Status"]
+    I --> J["200 Updated Request"]
+
+    K["DELETE /api/friends/user_id/"] --> L["Find ACCEPTED Request"]
+    L -->|Not Found| M["404"]
+    L -->|Found| N["Delete Bidirectional"]
+    N --> O["204 No Content"]
 ```
 
 ---
 
 ## Rooms Controller
 
-**Endpoints:** `/api/rooms/`, `/api/rooms/mine/`, `/api/rooms/{pk}/`, `/api/rooms/{pk}/members/`, `/api/rooms/{pk}/invite/`, `/api/rooms/{pk}/invitation/`, `/api/rooms/{pk}/members/{user_id}/`, `/api/rooms/{pk}/leave/`, `/api/rooms/invitations/`
+**Endpoints:** `/api/rooms/*`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/rooms/` | GET | List public + my rooms | ✅ Yes | `type` (query param, optional) | Array of rooms |
-| `/api/rooms/` | POST | Create new room | ✅ Yes | Room data | Room object |
-| `/api/rooms/{pk}/` | GET | Get room details | ✅ Yes | None | Room object |
-| `/api/rooms/{pk}/` | PATCH | Update room (owner only) | ✅ Yes | Room fields | Updated room object |
-| `/api/rooms/{pk}/` | DELETE | Delete room (owner only) | ✅ Yes | None | 204 No Content |
-| `/api/rooms/mine/` | GET | List rooms created by user | ✅ Yes | `type` (query param, optional) | Array of rooms |
-| `/api/rooms/invitations/` | GET | List pending invitations | ✅ Yes | None | Array of memberships |
-| `/api/rooms/{pk}/members/` | GET | List room members | ✅ Yes | None | Array of memberships |
-| `/api/rooms/{pk}/invite/` | POST | Invite user to room | ✅ Yes | `user_id` | RoomMembership object |
-| `/api/rooms/{pk}/invitation/` | PATCH | Accept/decline invitation | ✅ Yes | `action` (accept/decline) | Updated membership |
-| `/api/rooms/{pk}/members/{user_id}/` | DELETE | Kick member from room | ✅ Yes | None | 200 { detail } |
-| `/api/rooms/{pk}/leave/` | DELETE | Leave room voluntarily | ✅ Yes | None | 204 No Content |
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/rooms/` | GET | ✅ | `?type=` (optional) | Room list |
+| `/api/rooms/` | POST | ✅ | Room fields | Room object |
+| `/api/rooms/mine/` | GET | ✅ | `?type=` (optional) | Room list (owned) |
+| `/api/rooms/invitations/` | GET | ✅ | — | Pending invitations |
+| `/api/rooms/<pk>/` | GET | ✅ | — | Room object |
+| `/api/rooms/<pk>/` | PATCH | ✅ (owner) | Room fields | Updated room |
+| `/api/rooms/<pk>/` | DELETE | ✅ (owner) | — | 204 |
+| `/api/rooms/<pk>/members/` | GET | ✅ | — | Members list |
+| `/api/rooms/<pk>/invite/` | POST | ✅ (owner) | `user_id` | RoomMembership |
+| `/api/rooms/<pk>/invitation/` | PATCH | ✅ (invited) | `action` (accept/decline) | Updated membership |
+| `/api/rooms/<pk>/members/<user_id>/` | DELETE | ✅ (owner) | — | `{ detail }` |
+| `/api/rooms/<pk>/leave/` | DELETE | ✅ (member) | — | 204 |
 
-### Details
+### Room Object (camelCase — matches RoomSerializer)
 
-**GET /api/rooms/**
-- **Purpose:** List all rooms user can access (public + owned + member)
-- **Query Parameters:**
-  - `type` (optional): filter by room type
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "id": 1,
-      "name": "Jazz Night",
-      "description": "Jazz music and discussion",
-      "room_type": "music",
-      "visibility": "public",
-      "owner": { "id": 1, "username": "johndoe" },
-      "member_count": 12,
-      "is_open": true
-    },
-    ...
-  ]
-  ```
-- **Filters:**
-  - `visibility = PUBLIC` (public rooms)
-  - `owner = current_user` (owned rooms)
-  - Rooms where user has ACCEPTED membership
+```json
+{
+  "id": 1,
+  "name": "Jazz Night",
+  "description": "Chill jazz vibes",
+  "coverImage": "https://cdn.example.com/room1.jpg",
+  "isPublic": true,
+  "isLive": false,
+  "participantCount": 8,
+  "host": "johndoe",
+  "genres": ["jazz", "soul"],
+  "createdAt": "2026-04-01T20:00:00Z",
+  "currentTrack": { ... },
+  "room_type": "vote",
+  "visibility": "public",
+  "license_type": "default"
+}
+```
 
-**POST /api/rooms/**
-- **Purpose:** Create new room
-- **Request Body:**
-  ```json
-  {
-    "name": "My Music Room",
-    "description": "A place for music lovers",
-    "room_type": "music",
-    "visibility": "private",
-    "license_type": "default",
-    "start_time": "2026-03-24T20:00:00Z",
-    "end_time": "2026-03-24T22:00:00Z",
-    "max_members": 50
-  }
-  ```
-- **Success Response (201 Created):** Room object
-- **Validations:**
-  - `visibility` in [PUBLIC, PRIVATE]
-  - `license_type` in [DEFAULT, INVITED, LOCATION]
-  - Times must be valid
-- **Owner:** Auto-set to current user
-- **Log:** `room_created` with room id and name
+> `currentTrack` — for `vote`-type rooms this is the top-ranked track (highest `vote_count`). `null` for delegation rooms and when the queue is empty.
 
-**GET /api/rooms/{pk}/**
-- **Purpose:** Get room details
-- **Auth:** User must be owner or member (ACCEPTED status) or room is PUBLIC
-- **Success Response (200 OK):** Room object with full details
-- **Error (403 Forbidden):** User doesn't have access
+### POST /api/rooms/ — Create Room
+```json
+{
+  "name": "My Room",
+  "description": "Optional desc",
+  "room_type": "vote",
+  "visibility": "public",
+  "license_type": "default",
+  "coverImage": "https://...",
+  "genres": ["pop", "edm"]
+}
+```
+- `room_type`: `vote` | `delegation`
+- `visibility`: `public` | `private`
+- `license_type`: `default` | `invited` | `location`
+- **Log:** `room_created`
 
-**PATCH /api/rooms/{pk}/**
-- **Purpose:** Update room settings
-- **Auth:** Owner only
-- **Request Body:** Partial room fields
-- **Success Response (200 OK):** Updated room object
-- **Log:** `room_updated` with room id
-
-**DELETE /api/rooms/{pk}/**
-- **Purpose:** Delete room permanently
-- **Auth:** Owner only
-- **Success Response (204 No Content):**
-- **Cascade:** Deletes all memberships, invitations
-- **Log:** `room_deleted` with room id
-
-**GET /api/rooms/mine/**
-- **Purpose:** List rooms owned by current user
-- **Query Parameters:** `type` (optional)
-- **Success Response (200 OK):** Array of room objects
-
-**GET /api/rooms/invitations/**
-- **Purpose:** List pending invitations for current user
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "id": 10,
-      "room": { "id": 5, "name": "Late Night Vibes" },
-      "user": { "id": 2 },
-      "invited_by": { "id": 1, "username": "johndoe" },
-      "status": "pending",
-      "created_at": "2026-03-24T18:00:00Z"
-    },
-    ...
-  ]
-  ```
-
-**GET /api/rooms/{pk}/members/**
-- **Purpose:** List members of a room
-- **Auth:** User must have access to room
-- **Success Response (200 OK):**
-  ```json
-  [
-    {
-      "id": 1,
-      "user": { "id": 1, "username": "johndoe" },
-      "status": "accepted",
-      "invited_by": null,
-      "created_at": "2026-03-24T10:00:00Z"
-    },
-    ...
-  ]
-  ```
-
-**POST /api/rooms/{pk}/invite/**
-- **Purpose:** Invite user to private room
-- **Auth:** Owner only
-- **Request Body:**
-  ```json
-  {
-    "user_id": 42
-  }
-  ```
-- **Success Response (201 Created):** RoomMembership object
-- **Validations:**
-  - Cannot invite self (owner is already member)
-  - Cannot reinvite kicked users
-  - Cannot duplicate invitations
-- **Status:** Created with PENDING status
-- **Log:** `room_invite_sent` with room id and user id
-
-**PATCH /api/rooms/{pk}/invitation/**
-- **Purpose:** Accept or decline room invitation
-- **Auth:** Invited user only (PENDING status)
-- **Request Body:**
-  ```json
-  {
-    "action": "accept"  // or "decline"
-  }
-  ```
-- **Success Response (200 OK):** Updated RoomMembership object
-- **Behavior:**
-  - `accept` → status = ACCEPTED
-  - `decline` → status = DECLINED
-- **Log:** `room_invitation_accepted` or `room_invitation_declined`
-
-**DELETE /api/rooms/{pk}/members/{user_id}/**
-- **Purpose:** Kick a member from room
-- **Auth:** Owner only
-- **Success Response (200 OK):**
-  ```json
-  {
-    "detail": "User kicked from room."
-  }
-  ```
-- **Behavior:** Sets membership status to KICKED (soft delete)
-- **Log:** `room_member_kicked` with room id and user id
-
-**DELETE /api/rooms/{pk}/leave/**
-- **Purpose:** Leave room voluntarily
-- **Auth:** Member only (not owner)
-- **Validations:**
-  - Cannot leave if owner (must delete room instead)
-- **Success Response (204 No Content):**
-- **Behavior:** Deletes membership record
-- **Log:** `room_left` with room id
+### RoomMembership Object
+```json
+{
+  "id": 5,
+  "user_id": 42,
+  "user_email": "alice@example.com",
+  "user_username": "alice",
+  "status": "pending",
+  "invited_by_id": 1,
+  "created_at": "2026-04-10T09:00:00Z",
+  "updated_at": "2026-04-10T09:00:00Z"
+}
+```
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Views Rooms"] -->|GET /api/rooms/| B["Query Accessible Rooms"]
-    B -->|Filter Public + Owned + Member| C["Return Room Array"]
-    
-    D["User Creates Room"] -->|POST /api/rooms/| E["Validate Room Data"]
-    E -->|Invalid| F["400 Bad Request"]
-    E -->|Valid| G["Create Room"]
-    G -->|Set Owner| H["Return 201 Room Object"]
-    
-    I["User Views Room Details"] -->|GET /api/rooms/pk/| J["Check Access Permission"]
-    J -->|No Access| K["403 Forbidden"]
-    J -->|Access OK| L["Return Room Details"]
-    
-    M["Owner Invites User"] -->|POST /rooms/pk/invite/| N["Verify Owner"]
-    N -->|Not Owner| O["403 Forbidden"]
-    N -->|Owner| P["Check Invite Validity"]
-    P -->|Already Member| Q["400 Bad Request"]
-    P -->|Kicked| R["400 Bad Request"]
-    P -->|Valid| S["Create Membership: PENDING"]
-    S -->|Return| T["201 Membership Object"]
-    
-    U["Invited User Views Invitations"] -->|GET /rooms/invitations/| V["Query PENDING Memberships"]
-    V -->|Return| W["Array of Invitations"]
-    
-    X["Invited User Responds"] -->|PATCH /rooms/pk/invitation/| Y["Verify Invited User"]
-    Y -->|Valid| Z["Update Status"]
-    Z -->|Action=accept| AA["Status = ACCEPTED"]
-    Z -->|Action=decline| AB["Status = DECLINED"]
-    AA -->|Return| AC["200 Updated Membership"]
-    AB -->|Return| AC
-    
-    AD["Member Leaves"] -->|DELETE /rooms/pk/leave/| AE["Verify Not Owner"]
-    AE -->|Is Owner| AF["400 Bad Request"]
-    AE -->|Valid| AG["Delete Membership"]
-    AG -->|Return| AH["204 No Content"]
-    
-    AI["Owner Kicks Member"] -->|DELETE /rooms/pk/members/uid/| AJ["Verify Owner"]
-    AJ -->|Not Owner| AK["403 Forbidden"]
-    AJ -->|Owner| AL["Set Status=KICKED"]
-    AL -->|Return| AM["200 Kick Confirmed"]
+    A["GET /api/rooms/"] --> B["Query: public OR owned OR member"]
+    B --> C["Return Room List"]
+
+    D["POST /api/rooms/"] --> E["Validate Fields"]
+    E -->|Invalid| F["400"]
+    E -->|Valid| G["Create Room (owner = user)"]
+    G --> H["201 Room Object"]
+
+    I["POST /api/rooms/pk/invite/"] --> J["Verify Owner"]
+    J -->|Not Owner| K["403"]
+    J -->|Owner| L["Create Membership: PENDING"]
+    L --> M["201 Membership"]
+
+    N["PATCH /api/rooms/pk/invitation/"] --> O["Find PENDING Membership for User"]
+    O -->|Not Found| P["404"]
+    O -->|Found| Q["Set Status: accept/decline"]
+    Q --> R["200 Updated Membership"]
 ```
 
 ---
 
 ## Admin Controller
 
-**Endpoints:** `/api/admin/logs/`
+**Endpoints:** `/api/users/`, `/api/users/<pk>/`, `/api/admin/logs/`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Role Required | Input | Output |
-|----------|--------|---------|----------------|----------------|-------|--------|
-| `/api/admin/logs/` | GET | List action logs (paginated) | ✅ Yes | Staff/Admin | `user_id`, `action`, `limit`, `offset` | Paginated logs array |
+| Endpoint | Method | Auth | Role | Input | Output |
+|----------|--------|------|------|-------|--------|
+| `/api/users/` | GET | ✅ | Staff/Admin | — | Paginated user list |
+| `/api/users/<pk>/` | GET | ✅ | Staff/Admin | — | User object |
+| `/api/users/<pk>/` | PATCH | ✅ | Staff/Admin | User fields | Updated user |
+| `/api/users/<pk>/` | DELETE | ✅ | Staff/Admin | — | 200 deleted |
+| `/api/admin/logs/` | GET | ✅ | Staff/Admin | `user_id`, `action` (filters) | Paginated ActionLog list |
 
-### Details
+### GET /api/admin/logs/ — Action Log Response
+```json
+{
+  "count": 1523,
+  "next": "http://api/admin/logs/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "user_id": 5,
+      "user_email": "user@example.com",
+      "action": "login",
+      "detail": "User 5 logged in",
+      "ip_address": "192.168.1.1",
+      "platform": "web",
+      "device": "Chrome on macOS",
+      "app_version": "1.0.0",
+      "created_at": "2026-04-14T18:30:00Z"
+    }
+  ]
+}
+```
 
-**GET /api/admin/logs/**
-- **Purpose:** Retrieve paginated action logs for admin/monitoring
-- **Auth:** Bearer token (JWT Access) + Staff/Admin role
-- **Query Parameters:**
-  - `user_id` (optional): Filter by user ID
-  - `action` (optional): Filter by action name (exact match)
-  - `limit` (optional, default 50, max 500): Results per page
-  - `offset` (optional, default 0): Pagination offset
-- **Permission Check:** `IsStaffRoleUser` permission class
-- **Success Response (200 OK):**
-  ```json
-  {
-    "count": 1523,
-    "offset": 0,
-    "limit": 50,
-    "results": [
-      {
-        "id": 1,
-        "user_id": 5,
-        "user_email": "user@example.com",
-        "action": "login",
-        "detail": "User 5 logged in",
-        "ip_address": "192.168.1.1",
-        "platform": "web",
-        "device": "Chrome on macOS",
-        "app_version": "1.0.0",
-        "created_at": "2026-03-24T18:30:00Z"
-      },
-      ...
-    ]
-  }
-  ```
-- **Log Fields:**
-  - `id`: Primary key
-  - `user_id`: User who performed the action
-  - `user_email`: Email of the user
-  - `action`: Action type (login, register, friend_request_sent, room_created, etc.)
-  - `detail`: Additional details/context
-  - `ip_address`: Client IP address
-  - `platform`: Platform (web, mobile, etc.)
-  - `device`: Device string (User-Agent)
-  - `app_version`: App version if applicable
-  - `created_at`: Timestamp
+### Available Action Log Events
 
-- **Available Actions:**
-  - Auth: `login`, `logout`, `register`
-  - Password: `password_reset_requested`, `password_reset_completed`, `password_changed`
-  - Profile: `profile_updated`, `account_deleted`
-  - Friends: `friend_request_sent`, `friend_request_accepted`, `friend_request_declined`, `friend_request_cancelled`, `friend_removed`
-  - Rooms: `room_created`, `room_updated`, `room_deleted`, `room_invite_sent`, `room_invitation_accepted`, `room_invitation_declined`, `room_member_kicked`, `room_left`
-  - Music: `music_preferences_updated`
-
-- **Pagination:**
-  - Default limit: 50
-  - Maximum limit: 500
-  - Total count of records available in `count` field
+| Module | Actions |
+|--------|---------|
+| Auth | `login`, `logout`, `register` |
+| Password | `password_reset_requested`, `password_reset_completed`, `password_changed` |
+| Profile | `profile_updated`, `account_deleted` |
+| Friends | `friend_request_sent`, `friend_request_accepted`, `friend_request_declined`, `friend_request_blocked`, `friend_request_cancelled`, `friend_removed` |
+| Rooms | `room_created`, `room_updated`, `room_deleted`, `room_invite_sent`, `room_invitation_accepted`, `room_invitation_declined`, `room_member_kicked`, `room_left` |
+| Music Prefs | `music_preferences_updated` |
+| Track Vote | `track_suggested`, `track_voted`, `track_deleted` |
+| Delegation | `device_registered`, `control_delegated`, `control_revoked` |
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["Admin User Requests Logs"] -->|GET /api/admin/logs/| B["Verify JWT Token"]
-    B -->|Invalid| C["401 Unauthorized"]
-    B -->|Valid| D["Check Staff Role"]
+    A["GET /api/admin/logs/"] --> B["Verify JWT"]
+    B -->|Invalid| C["401"]
+    B -->|Valid| D["Check Role: Staff/Admin"]
     D -->|Not Staff| E["403 Forbidden"]
-    D -->|Staff/Admin| F["Parse Query Params"]
-    F -->|Build Filters| G["Query ActionLog DB"]
-    G -->|Apply user_id Filter| H["Filter by User"]
-    H -->|Apply action Filter| I["Filter by Action"]
-    I -->|Apply Limit/Offset| J["Paginate Results"]
-    J -->|Serialize| K["Return 200 Paginated Logs"]
-    
-    style A fill:#e1f5ff
-    style K fill:#c8e6c9
+    D -->|Staff| F["Apply Filters (user_id, action)"]
+    F --> G["Paginate Results"]
+    G --> H["200 Paginated Logs"]
 ```
 
 ---
@@ -928,678 +671,385 @@ graph TD
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/music-preferences/` | GET | Get user's music preferences | ✅ Yes | None | MusicPreferences object |
-| `/api/music-preferences/` | PUT | Replace music preferences | ✅ Yes | Preferences data | Updated preferences |
-| `/api/music-preferences/` | PATCH | Partial update preferences | ✅ Yes | Preferences fields | Updated preferences |
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/music-preferences/` | GET | ✅ | — | MusicPreferences object |
+| `/api/music-preferences/` | PUT | ✅ | All preference fields | Updated preferences |
+| `/api/music-preferences/` | PATCH | ✅ | Any subset of fields | Updated preferences |
 
-### Details
-
-**GET /api/music-preferences/**
-- **Purpose:** Retrieve current user's music preferences
-- **Auth:** Bearer token (JWT Access)
-- **Success Response (200 OK):**
-  ```json
-  {
-    "id": 1,
-    "profile": 1,
-    "genres": ["jazz", "classical", "rock"],
-    "favorite_artists": ["Miles Davis", "Bach", "Pink Floyd"],
-    "preferred_tempo": "moderate",
-    "mood": "relaxed",
-    "created_at": "2026-03-24T10:00:00Z",
-    "updated_at": "2026-03-24T15:00:00Z"
-  }
-  ```
-- **Behavior:**
-  - If preferences don't exist: creates default/empty preferences
-
-**PUT /api/music-preferences/**
-- **Purpose:** Replace entire music preferences (all fields)
-- **Auth:** Bearer token (JWT Access)
-- **Request Body:**
-  ```json
-  {
-    "genres": ["jazz", "electronic", "indie"],
-    "favorite_artists": ["John Coltrane", "Daft Punk", "The xx"],
-    "preferred_tempo": "fast",
-    "mood": "energetic"
-  }
-  ```
-- **Success Response (200 OK):** Updated preferences object
-- **Behavior:**
-  - Updates or creates preferences
-  - All fields must be provided
-
-**PATCH /api/music-preferences/**
-- **Purpose:** Partially update music preferences
-- **Auth:** Bearer token (JWT Access)
-- **Request Body (example - only some fields):**
-  ```json
-  {
-    "mood": "chill"
-  }
-  ```
-- **Success Response (200 OK):** Updated preferences object
-- **Behavior:**
-  - Only provided fields are updated
-  - Existing fields remain unchanged
-
-### Flowchart
-
-```mermaid
-graph TD
-    A["User Views Music Prefs"] -->|GET /api/music-preferences/| B["Verify JWT Token"]
-    B -->|Invalid| C["401 Unauthorized"]
-    B -->|Valid| D["Get or Create Preferences"]
-    D -->|Fetch from DB| E["Return 200 Preferences"]
-    
-    F["User Updates Music Prefs (Full)"] -->|PUT /api/music-preferences/| G["Verify JWT Token"]
-    G -->|Invalid| H["401 Unauthorized"]
-    G -->|Valid| I["Validate All Fields"]
-    I -->|Invalid| J["400 Bad Request"]
-    I -->|Valid| K["Replace Preferences"]
-    K -->|Return| L["200 Updated Preferences"]
-    
-    M["User Updates Music Prefs (Partial)"] -->|PATCH /api/music-preferences/| N["Verify JWT Token"]
-    N -->|Invalid| O["401 Unauthorized"]
-    N -->|Valid| P["Validate Provided Fields"]
-    P -->|Invalid| Q["400 Bad Request"]
-    P -->|Valid| R["Merge with Existing"]
-    R -->|Return| S["200 Updated Preferences"]
+### MusicPreferences Object
+```json
+{
+  "favorite_genres": ["jazz", "rock", "electronic"],
+  "favorite_artists": ["Miles Davis", "Daft Punk"],
+  "favorite_tracks": ["track-spotify-id-1"],
+  "updated_at": "2026-04-10T08:00:00Z"
+}
 ```
+
+- **GET:** Returns existing preferences or creates empty defaults on first access
+- **PUT:** Replaces all fields
+- **PATCH:** Merges — only provided fields are mutated
+- **Log:** `music_preferences_updated`
 
 ---
 
 ## Music Track Vote Controller
 
-**Endpoints:** `/api/events/<room_id>/tracks/`, `/api/events/<room_id>/tracks/<track_id>/vote/`
+**Endpoints:** `/api/events/<room_id>/tracks/*`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/events/<room_id>/tracks/` | GET | List tracks ranked by votes | ✅ Yes | None | Array of Track objects |
-| `/api/events/<room_id>/tracks/` | POST | Suggest a new track | ✅ Yes | `title`, `artist`, `external_url` | Track object |
-| `/api/events/<room_id>/tracks/<track_id>/vote/` | POST | Vote for a track | ✅ Yes | None (optional `lat`, `lon`) | `{ detail, track }` |
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/events/<room_id>/tracks/` | GET | ✅ | — | Paginated Track list (ranked) |
+| `/api/events/<room_id>/tracks/` | POST | ✅ | Spotify track fields | Track object |
+| `/api/events/<room_id>/tracks/<track_id>/vote/` | POST | ✅ | _(optional `lat`, `lon`)_ | `{ detail, track }` |
+| `/api/events/<room_id>/tracks/<track_id>/` | DELETE | ✅ | — | 204 No Content |
 
-### Details
-
-**GET /api/events/<room_id>/tracks/**
-- **Purpose:** Retrieve all tracks in a vote-type room, ordered by vote count (descending)
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements (default / invited / location)
-- **Success Response (200 OK):**
-  ```json
-  {
-    "count": 12,
-    "next": "http://api.example.com/api/events/5/tracks/?page=2",
-    "previous": null,
-    "results": [
-      {
-        "id": 1,
-        "room": 5,
-        "title": "Bohemian Rhapsody",
-        "artist": "Queen",
-        "external_url": "https://open.spotify.com/track/...",
-        "suggested_by_id": 3,
-        "suggested_by_username": "johndoe",
-        "vote_count": 12,
-        "rank": 1,
-        "has_voted": true,
-        "created_at": "2026-04-14T18:00:00Z"
-      },
-      ...
-    ]
-  }
-  ```
-- **Fields Notes:**
-  - `rank`: 1-based rank computed via DB window function.
-  - `has_voted`: Boolean indicating if the requesting user has already voted.
-- **Pagination:** Uses standard DRF page-number pagination (default size: 50).
-- **Error Responses:**
-  - `400 Bad Request` — Room is not a vote-type room
-  - `403 Forbidden` — User does not meet license requirements
-  - `401 Unauthorized` — Missing or invalid JWT
-
-**POST /api/events/<room_id>/tracks/**
-- **Purpose:** Suggest a new track in a vote-type room
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements
-- **Request Body:**
-  ```json
-  {
-    "title": "Hotel California",
-    "artist": "Eagles",
-    "external_url": "https://open.spotify.com/track/..."
-  }
-  ```
-- **Success Response (201 Created):**
-  ```json
-  {
-    "id": 3,
-    "room": 5,
-    "title": "Hotel California",
-    "artist": "Eagles",
-    "external_url": "https://open.spotify.com/track/...",
-    "suggested_by_id": 3,
-    "suggested_by_username": "johndoe",
-    "vote_count": 0,
-    "created_at": "2026-04-14T19:00:00Z"
-  }
-  ```
-- **Log:** `track_suggested` with track id and room id
-- **Notes:**
-  - `external_url` is optional
-  - Track starts with `vote_count = 0`
-  - For location-restricted rooms, include `lat` and `lon` in the request body
-
-**POST /api/events/<room_id>/tracks/<track_id>/vote/**
-- **Purpose:** Vote for a track. Uses atomic `F()` increment to handle concurrent votes safely.
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements
-- **Request Body:** None required (optional `lat`, `lon` for location-restricted rooms)
-- **Concurrency:** Uses `transaction.atomic()` + `F('vote_count') + 1` to prevent race conditions
-- **Success Response (200 OK):**
-  ```json
-  {
-    "detail": "Vote recorded.",
-    "track": {
-      "id": 1,
-      "room": 5,
-      "title": "Bohemian Rhapsody",
-      "artist": "Queen",
-      "external_url": "https://open.spotify.com/track/...",
-      "suggested_by_id": 3,
-      "suggested_by_username": "johndoe",
-      "vote_count": 13,
-      "created_at": "2026-04-14T18:00:00Z"
-    }
-  }
-  ```
-- **Error (400 Bad Request):**
-  ```json
-  {
-    "detail": "You have already voted for this track."
-  }
-  ```
-- **Error (404 Not Found):** Track does not exist in this room
-- **Log:** `track_voted` with track id and room id
-- **WebSocket Broadcast:** After a successful vote, the updated ranked track list is broadcast to all clients connected to `ws/events/<room_id>/`
-- **Double Vote Prevention:** `unique_together = ('track', 'user')` constraint on the Vote model
-
-### Flowchart
-
-```mermaid
-graph TD
-    A["User Views Track List"] -->|GET /events/room_id/tracks/| B["Verify JWT Token"]
-    B -->|Invalid| C["401 Unauthorized"]
-    B -->|Valid| D["Check License"]
-    D -->|Denied| E["403 Forbidden"]
-    D -->|Allowed| F["Query Tracks ORDER BY vote_count DESC"]
-    F -->|Return| G["200 Paginated Track Results"]
-    
-    H["User Suggests Track"] -->|POST /events/room_id/tracks/| I["Verify JWT Token"]
-    I -->|Invalid| J["401 Unauthorized"]
-    I -->|Valid| K["Check License"]
-    K -->|Denied| L["403 Forbidden"]
-    K -->|Allowed| M["Validate Input"]
-    M -->|Invalid| N["400 Bad Request"]
-    M -->|Valid| O["Create Track with vote_count=0"]
-    O -->|Return| P["201 Track Object"]
-    
-    Q["User Votes for Track"] -->|POST /events/room_id/tracks/track_id/vote/| R["Verify JWT Token"]
-    R -->|Invalid| S["401 Unauthorized"]
-    R -->|Valid| T["Check License"]
-    T -->|Denied| U["403 Forbidden"]
-    T -->|Allowed| V["Check Duplicate Vote"]
-    V -->|Already Voted| W["400 Already Voted"]
-    V -->|First Vote| X["Atomic: Create Vote + F increment"]
-    X -->|Broadcast via WebSocket| Y["200 Vote Recorded + Track"]
-    
-    style A fill:#e1f5ff
-    style H fill:#e1f5ff
-    style Q fill:#e1f5ff
-    style G fill:#c8e6c9
-    style P fill:#c8e6c9
-    style Y fill:#c8e6c9
-```
+> All endpoints require the room to have `room_type = "vote"`. This is validated on every request. Non-vote rooms respond with `400`.
 
 ---
 
-## Music Playlist Editor Controller
+### GET /api/events/\<room_id\>/tracks/
 
-**Endpoints:** `/api/playlists/<room_id>/tracks/`, `/api/playlists/<room_id>/tracks/<track_id>/`, `/api/playlists/<room_id>/tracks/<track_id>/move/`
-
-### Schema
-
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/playlists/<room_id>/tracks/` | GET | List ordered playlist tracks | ✅ Yes | None | Array of PlaylistTrack objects |
-| `/api/playlists/<room_id>/tracks/` | POST | Add track to end of playlist | ✅ Yes | `title`, `artist`, `external_url` | PlaylistTrack object |
-| `/api/playlists/<room_id>/tracks/<track_id>/` | DELETE | Remove track from playlist | ✅ Yes | None | 204 No Content |
-| `/api/playlists/<room_id>/tracks/<track_id>/move/` | PATCH | Move track to new position | ✅ Yes | `new_position` | PlaylistTrack object |
-
-### Details
-
-**GET /api/playlists/<room_id>/tracks/**
-- **Purpose:** Retrieve all tracks in a playlist-type room, ordered by position (ascending)
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements
-- **Success Response (200 OK):**
+- **Purpose:** List all tracks in a vote-type room, ranked by `vote_count` (descending). Tie-breaking: `created_at` DESC → `id` DESC.
+- **License Check:** User must pass the room's license requirements.
+- **Pagination:** Standard DRF page-number pagination (default page size: 50).
+- **Response (200 OK):**
   ```json
   {
-    "count": 25,
-    "next": null,
+    "count": 12,
+    "next": "http://api/api/events/5/tracks/?page=2",
     "previous": null,
-    "version": 5,
-    "tracks": [
+    "results": [
       {
-        "id": 1,
-        "room": 10,
-        "title": "Come Together",
-        "artist": "The Beatles",
-        "external_url": "",
-        "added_by_id": 3,
-        "added_by_username": "johndoe",
-        "position": 0,
-        "created_at": "2026-04-14T18:00:00Z",
-        "updated_at": "2026-04-14T18:00:00Z"
-      },
-      ...
+        "id": "1",
+        "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+        "title": "Blinding Lights",
+        "artist": "The Weeknd",
+        "album": "After Hours",
+        "albumArt": "https://i.scdn.co/image/ab67616d0000b273ef017e899c0547...",
+        "duration": 200,
+        "audioUrl": "https://p.scdn.co/mp3-preview/b61b3c0b0...",
+        "votes": 12,
+        "vote_count": 12,
+        "rank": 1,
+        "has_voted": true,
+        "addedBy": {
+          "name": "johndoe",
+          "avatar": "https://i.pravatar.cc/100"
+        }
+      }
     ]
   }
   ```
-- **Pagination:** Uses DRF page-number pagination. Results are returned under the `tracks` key.
-- **Concurrency Info:** `version` field is included in the response to help clients synchronize local state.
-- **Error Responses:**
-  - `400 Bad Request` — Room is not a playlist-type room
-  - `403 Forbidden` — User does not meet license requirements
+- **Field Notes:**
+  - `spotifyId` — Spotify Track ID (unique within the room)
+  - `albumArt` — Spotify album cover URL
+  - `audioUrl` — Spotify 30-second preview URL (`preview_url`)
+  - `duration` — duration in seconds
+  - `votes` — camelCase alias for `vote_count` (frontend primary)
+  - `vote_count` — integer, also exposed for backend/admin compatibility
+  - `rank` — 1-based position computed via DB window function; always contiguous (1, 2, 3 …)
+  - `has_voted` — `true` if the requesting user has already voted for this track
+  - `addedBy.name` — username of the user who suggested the track
+- **Errors:**
+  - `400` — Room is not vote-type
+  - `401` — Missing/invalid JWT
+  - `403` — License check failed
 
-**POST /api/playlists/<room_id>/tracks/**
-- **Purpose:** Add a new track at the end of the playlist. Position is automatically calculated.
-- **Auth:** Bearer token (JWT Access)
-- **Concurrency:** Uses `select_for_update()` to safely calculate the next position
-- **Request Body:**
-  ```json
-  {
-    "title": "Let It Be",
-    "artist": "The Beatles",
-    "external_url": "https://open.spotify.com/track/..."
-  }
-  ```
-- **Success Response (201 Created):**
-  ```json
-  {
-    "id": 3,
-    "room": 10,
-    "title": "Let It Be",
-    "artist": "The Beatles",
-    "external_url": "https://open.spotify.com/track/...",
-    "added_by_id": 3,
-    "added_by_username": "johndoe",
-    "position": 2,
-    "created_at": "2026-04-14T19:00:00Z",
-    "updated_at": "2026-04-14T19:00:00Z"
-  }
-  ```
-- **Log:** `playlist_track_added` with track id, position, and room id
-- **WebSocket Broadcast:** Updated playlist sent to `ws/playlists/<room_id>/`
+---
 
-**DELETE /api/playlists/<room_id>/tracks/<track_id>/**
-- **Purpose:** Remove a track from the playlist and re-compact positions
-- **Auth:** Bearer token (JWT Access)
-- **Concurrency:** Uses `select_for_update()` + atomic transaction
-- **Behavior:**
-  - Deletes the track
-  - All tracks after the removed position shift down by 1 (positions re-compacted)
-- **Success Response (204 No Content)**
-- **Error (404 Not Found):** Track does not exist in this playlist
-- **Log:** `playlist_track_removed` with track id and room id
-- **WebSocket Broadcast:** Updated playlist sent to `ws/playlists/<room_id>/`
+### POST /api/events/\<room_id\>/tracks/ — Suggest a Spotify Track
 
-**PATCH /api/playlists/<room_id>/tracks/<track_id>/move/**
-- **Purpose:** Move a track to a new position. Uses last-write-wins conflict resolution.
-- **Auth:** Bearer token (JWT Access)
-- **Concurrency:** Uses `select_for_update()` + atomic transaction with row-by-row position updates
-- **Conflict Strategy:** Last write wins — positions are recalculated atomically
-- **Request Body:**
-  ```json
-  {
-    "new_position": 0
+- **Purpose:** Add a Spotify track to the room's vote queue.
+- **How:** The frontend fetches track metadata from Spotify, then POSTs it here. The backend stores it and never calls the Spotify API directly.
+- **License Check:** Enforced before mutation.
+
+**Request Body:**
+```json
+{
+  "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+  "title": "Blinding Lights",
+  "artist": "The Weeknd",
+  "album": "After Hours",
+  "albumArt": "https://i.scdn.co/image/ab67616d0000b273ef017e899c0547...",
+  "duration": 200,
+  "audioUrl": "https://p.scdn.co/mp3-preview/b61b3c0b0..."
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `spotifyId` | ✅ Yes | Spotify Track ID — enforces `unique_together (room, spotify_id)` |
+| `title` | ✅ Yes | Track title |
+| `artist` | ✅ Yes | Artist name |
+| `album` | ❌ Optional | Album name |
+| `albumArt` | ❌ Optional | Album cover image URL |
+| `duration` | ❌ Optional | Duration in seconds (default 0) |
+| `audioUrl` | ❌ Optional | Spotify 30-second preview URL |
+
+- **For geo-restricted rooms:** also include `lat` (float) and `lon` (float) in the body.
+
+**Success Response (201 Created):** Track object (same shape as list results)
+
+**Error Responses:**
+- `400` — Missing required field, blank `spotifyId`, non-vote room
+- `401` — Missing JWT
+- `403` — License check failed (not a member / outside geo-fence / outside time window)
+- `409 Conflict` — Same `spotifyId` already exists in this room
+
+**Log:** `track_suggested`  
+**WebSocket Broadcast:** `track.added` event sent to group `vote_<room_id>`
+
+---
+
+### POST /api/events/\<room_id\>/tracks/\<track_id\>/vote/
+
+- **Purpose:** Vote for a track. Atomically increments `vote_count`. One vote per user per track (DB-enforced).
+- **License Check:** Enforced before mutation.
+- **Request Body:** Empty — or include `lat`/`lon` for geo-restricted rooms.
+- **Concurrency Safety:** `transaction.atomic()` + `F('vote_count') + 1` + `Vote.unique_together ('track', 'user')`
+
+**Success Response (200 OK):**
+```json
+{
+  "detail": "Vote recorded.",
+  "track": {
+    "id": "1",
+    "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "album": "After Hours",
+    "albumArt": "https://i.scdn.co/image/...",
+    "duration": 200,
+    "audioUrl": "https://p.scdn.co/mp3-preview/...",
+    "votes": 13,
+    "vote_count": 13,
+    "rank": 1,
+    "has_voted": true,
+    "addedBy": { "name": "johndoe", "avatar": "https://i.pravatar.cc/100" }
   }
-  ```
-- **Success Response (200 OK):**
+}
+```
+
+**Error Responses:**
+- `400` — Already voted: `{ "detail": "You have already voted for this track." }`
+- `403` — License check failed
+- `404` — Track not found in this room: `{ "detail": "Track not found in this room." }`
+
+**Log:** `track_voted`  
+**WebSocket Broadcast:** `vote.update` event sent to group `vote_<room_id>`
+
+---
+
+### DELETE /api/events/\<room_id\>/tracks/\<track_id\>/
+
+- **Purpose:** Remove a track from the room's vote queue.
+- **Permission:** Room owner **or** the user who suggested the track. Anyone else → `403`.
+- **Success Response:** `204 No Content`
+- **Error (403):**
   ```json
-  {
-    "id": 3,
-    "room": 10,
-    "title": "Let It Be",
-    "artist": "The Beatles",
-    "external_url": "https://open.spotify.com/track/...",
-    "added_by_id": 3,
-    "added_by_username": "johndoe",
-    "position": 0,
-    "created_at": "2026-04-14T19:00:00Z",
-    "updated_at": "2026-04-14T19:30:00Z"
-  }
+  { "detail": "Only the room owner or the track suggester can delete this track." }
   ```
-- **Move Logic:**
-  - Track is temporarily moved to a sentinel position
-  - When moving down: tracks between `(old, new]` shift up by 1
-  - When moving up: tracks between `[new, old)` shift down by 1
-  - Track is placed at the target position
-  - `new_position` is clamped to valid range `[0, max]`
-- **Error (404 Not Found):** Track does not exist in this playlist
-- **Log:** `playlist_track_moved` with track id, old→new position, and room id
-- **WebSocket Broadcast:** Updated playlist sent to `ws/playlists/<room_id>/`
+- **Side Effects:** Cascade-deletes all `Vote` rows for this track; `unique_together` is released so the same `spotifyId` can be re-added.
+- **Log:** `track_deleted`  
+- **WebSocket Broadcast:** `track.removed` event sent to group `vote_<room_id>`
+
+---
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Views Playlist"] -->|GET /playlists/room_id/tracks/| B["Verify JWT + License"]
-    B -->|Denied| C["401/403"]
-    B -->|Allowed| D["Query Tracks ORDER BY position ASC"]
-    D -->|Return| E["200 Paginated Playlist Response"]
-    
-    F["User Adds Track"] -->|POST /playlists/room_id/tracks/| G["Verify JWT + License"]
-    G -->|Denied| H["401/403"]
-    G -->|Allowed| I["Atomic: select_for_update, calc next position"]
-    I -->|Create Track| J["Broadcast via WebSocket"]
-    J -->|Return| K["201 PlaylistTrack Object"]
-    
-    L["User Removes Track"] -->|DELETE /playlists/room_id/tracks/track_id/| M["Verify JWT + License"]
-    M -->|Denied| N["401/403"]
-    M -->|Allowed| O["Atomic: Delete + Re-compact Positions"]
-    O -->|Broadcast via WebSocket| P["204 No Content"]
-    
-    Q["User Moves Track"] -->|PATCH /playlists/room_id/tracks/track_id/move/| R["Verify JWT + License"]
-    R -->|Denied| S["401/403"]
-    R -->|Allowed| T["Atomic: Sentinel + Shift + Place"]
-    T -->|Same Position?| U["200 No-op"]
-    T -->|Different Position| V["Broadcast via WebSocket"]
-    V -->|Return| W["200 Updated PlaylistTrack"]
-    
-    style A fill:#e1f5ff
-    style F fill:#e1f5ff
-    style L fill:#e1f5ff
-    style Q fill:#e1f5ff
+    A["User: GET /events/room_id/tracks/"] --> B["Verify JWT + License"]
+    B -->|Denied| C["401 / 403"]
+    B -->|OK| D["Query Tracks ORDER BY vote_count DESC"]
+    D --> E["200 Paginated Results with rank + has_voted"]
+
+    F["User: POST /events/room_id/tracks/"] --> G["Verify JWT"]
+    G -->|Denied| H["401"]
+    G -->|Valid| I["License Check"]
+    I -->|Denied| J["403"]
+    I -->|OK| K["Validate spotifyId (required)"]
+    K -->|Missing/Blank| L["400 Bad Request"]
+    K -->|Valid| M["CREATE Track (vote_count=0)"]
+    M -->|Duplicate spotifyId| N["409 Conflict"]
+    M -->|Success| O["201 Track Object"]
+    O --> P["Broadcast: track.added"]
+
+    Q["User: POST /events/room_id/tracks/track_id/vote/"] --> R["Verify JWT + License"]
+    R -->|Denied| S["401 / 403"]
+    R -->|OK| T["atomic: Create Vote + F(vote_count)+1"]
+    T -->|Already Voted| U["400 Already Voted"]
+    T -->|Track Missing| V["404 Not Found"]
+    T -->|Success| W["200 Vote Recorded + Track"]
+    W --> X["Broadcast: vote.update"]
+
+    Y["User: DELETE /events/room_id/tracks/track_id/"] --> Z["Verify JWT"]
+    Z -->|Denied| AA["401"]
+    Z -->|Valid| AB{"Owner or Suggester?"}
+    AB -->|No| AC["403 Forbidden"]
+    AB -->|Yes| AD["Delete Track + Cascade Votes"]
+    AD --> AE["204 No Content"]
+    AE --> AF["Broadcast: track.removed"]
+
     style E fill:#c8e6c9
-    style K fill:#c8e6c9
-    style P fill:#c8e6c9
+    style O fill:#c8e6c9
     style W fill:#c8e6c9
+    style AE fill:#c8e6c9
+    style C fill:#ffcdd2
+    style H fill:#ffcdd2
+    style L fill:#ffcdd2
+    style N fill:#ffcdd2
+    style U fill:#ffcdd2
 ```
 
 ---
 
 ## Music Control Delegation Controller
 
-**Endpoints:** `/api/delegation/<room_id>/devices/`, `/api/delegation/<room_id>/devices/<device_id>/delegate/`, `/api/delegation/<room_id>/devices/<device_id>/revoke/`, `/api/delegation/<room_id>/devices/<device_id>/status/`
+**Endpoints:** `/api/delegation/<room_id>/devices/*`
 
 ### Schema
 
-| Endpoint | Method | Purpose | Auth Required | Input | Output |
-|----------|--------|---------|----------------|-------|--------|
-| `/api/delegation/<room_id>/devices/` | GET | List devices in room | ✅ Yes | None | Array of DeviceDelegation objects |
-| `/api/delegation/<room_id>/devices/` | POST | Register a new device | ✅ Yes | `device_identifier`, `device_name` | DeviceDelegation object |
-| `/api/delegation/<room_id>/devices/<device_id>/delegate/` | POST | Delegate control to friend | ✅ Yes | `friend_id` | DeviceDelegation object |
-| `/api/delegation/<room_id>/devices/<device_id>/revoke/` | POST | Revoke delegation | ✅ Yes | None | DeviceDelegation object |
-| `/api/delegation/<room_id>/devices/<device_id>/status/` | GET | Get who has control | ✅ Yes | None | DeviceDelegation object |
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/delegation/<room_id>/devices/` | GET | ✅ | — | Paginated DeviceDelegation list |
+| `/api/delegation/<room_id>/devices/` | POST | ✅ | `device_identifier`, `device_name` | DeviceDelegation object |
+| `/api/delegation/<room_id>/devices/<device_id>/delegate/` | POST | ✅ (owner) | `friend_id` | Updated DeviceDelegation |
+| `/api/delegation/<room_id>/devices/<device_id>/revoke/` | POST | ✅ (owner) | — | Updated DeviceDelegation |
+| `/api/delegation/<room_id>/devices/<device_id>/status/` | GET | ✅ | — | DeviceDelegation object |
+
+> All endpoints require `room_type = "delegation"`. Non-delegation rooms return `400`.
+
+### DeviceDelegation Object
+```json
+{
+  "id": 1,
+  "room": 15,
+  "device_identifier": "uuid-abc-123",
+  "device_name": "Living Room Speaker",
+  "owner_id": 3,
+  "owner_username": "johndoe",
+  "delegated_to_id": 7,
+  "delegated_to_username": "janedoe",
+  "status": "active",
+  "created_at": "2026-04-14T18:00:00Z",
+  "updated_at": "2026-04-14T20:30:00Z"
+}
+```
 
 ### Details
 
-**GET /api/delegation/<room_id>/devices/**
-- **Purpose:** List all devices registered in a delegation-type room
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements
-- **Success Response (200 OK):**
-  ```json
-  {
-    "count": 2,
-    "next": null,
-    "previous": null,
-    "results": [
-      {
-        "id": 1,
-        "room": 15,
-        "device_identifier": "uuid-abc-123",
-        "device_name": "Living Room Speaker",
-        "owner_id": 3,
-        "owner_username": "johndoe",
-        "delegated_to_id": null,
-        "delegated_to_username": null,
-        "status": "active",
-        "created_at": "2026-04-14T18:00:00Z",
-        "updated_at": "2026-04-14T18:00:00Z"
-      },
-      ...
-    ]
-  }
-  ```
-- **Pagination:** Uses standard DRF page-number pagination (default size: 50).
-- **Error Responses:**
-  - `400 Bad Request` — Room is not a delegation-type room
-  - `403 Forbidden` — User does not meet license requirements
+**POST /api/delegation/\<room_id\>/devices/** — Register Device
+```json
+{ "device_identifier": "uuid-ghi-789", "device_name": "Bedroom Speaker" }
+```
+- Constraint: `unique_together (room, device_identifier)` → `409` if already registered
+- **Log:** `device_registered`
 
-**POST /api/delegation/<room_id>/devices/**
-- **Purpose:** Register a new device in the delegation room
-- **Auth:** Bearer token (JWT Access)
-- **Request Body:**
-  ```json
-  {
-    "device_identifier": "uuid-ghi-789",
-    "device_name": "Bedroom Speaker"
-  }
-  ```
-- **Success Response (201 Created):**
-  ```json
-  {
-    "id": 3,
-    "room": 15,
-    "device_identifier": "uuid-ghi-789",
-    "device_name": "Bedroom Speaker",
-    "owner_id": 3,
-    "owner_username": "johndoe",
-    "delegated_to_id": null,
-    "delegated_to_username": null,
-    "status": "active",
-    "created_at": "2026-04-14T20:00:00Z",
-    "updated_at": "2026-04-14T20:00:00Z"
-  }
-  ```
-- **Error (400 Bad Request):**
-  ```json
-  {
-    "detail": "This device is already registered in this room."
-  }
-  ```
-- **Log:** `device_registered` with device identifier and room id
-- **Constraints:** `unique_together = ('room', 'device_identifier')` — no duplicate devices per room
+**POST /api/delegation/\<room_id\>/devices/\<device_id\>/delegate/** — Delegate
+```json
+{ "friend_id": 7 }
+```
+- **Owner only** — `403` for anyone else
+- Cannot delegate to self → `400`
+- Sets `delegated_to = user` with `status = "active"`
+- **Log:** `control_delegated`
+- **WebSocket Broadcast:** `delegation_update` (event: `delegated`) to group `delegation_<room_id>`
 
-**POST /api/delegation/<room_id>/devices/<device_id>/delegate/**
-- **Purpose:** Delegate music playback control of a device to a friend
-- **Auth:** Bearer token (JWT Access) — **device owner only**
-- **Request Body:**
-  ```json
-  {
-    "friend_id": 7
-  }
-  ```
-- **Success Response (200 OK):**
-  ```json
-  {
-    "id": 1,
-    "room": 15,
-    "device_identifier": "uuid-abc-123",
-    "device_name": "Living Room Speaker",
-    "owner_id": 3,
-    "owner_username": "johndoe",
-    "delegated_to_id": 7,
-    "delegated_to_username": "janedoe",
-    "status": "active",
-    "created_at": "2026-04-14T18:00:00Z",
-    "updated_at": "2026-04-14T20:30:00Z"
-  }
-  ```
-- **Error (403 Forbidden):**
-  ```json
-  {
-    "detail": "Only the device owner can delegate control."
-  }
-  ```
-- **Error (400 Bad Request):**
-  ```json
-  {
-    "detail": "You cannot delegate control to yourself."
-  }
-  ```
-- **Log:** `control_delegated` with device id, friend id, and room id
-- **WebSocket Broadcast:** Delegation event sent to `ws/delegation/<room_id>/`
-
-**POST /api/delegation/<room_id>/devices/<device_id>/revoke/**
-- **Purpose:** Revoke delegation and return control to the device owner
-- **Auth:** Bearer token (JWT Access) — **device owner only**
-- **Request Body:** None
-- **Behavior:**
-  - Sets `delegated_to = null`
-  - Sets `status = 'revoked'`
-- **Success Response (200 OK):**
-  ```json
-  {
-    "id": 1,
-    "room": 15,
-    "device_identifier": "uuid-abc-123",
-    "device_name": "Living Room Speaker",
-    "owner_id": 3,
-    "owner_username": "johndoe",
-    "delegated_to_id": null,
-    "delegated_to_username": null,
-    "status": "revoked",
-    "created_at": "2026-04-14T18:00:00Z",
-    "updated_at": "2026-04-14T21:00:00Z"
-  }
-  ```
-- **Error (403 Forbidden):** Only the device owner can revoke control
-- **Log:** `control_revoked` with device id and room id
-- **WebSocket Broadcast:** Revocation event sent to `ws/delegation/<room_id>/`
-
-**GET /api/delegation/<room_id>/devices/<device_id>/status/**
-- **Purpose:** Check who currently has control of a specific device
-- **Auth:** Bearer token (JWT Access)
-- **License Check:** User must pass the room's license requirements
-- **Success Response (200 OK):** DeviceDelegation object (same schema as above)
-- **Error (404 Not Found):** Device does not exist in this room
+**POST /api/delegation/\<room_id\>/devices/\<device_id\>/revoke/** — Revoke
+- **Owner only**
+- Sets `delegated_to = null`, `status = "revoked"`
+- **Log:** `control_revoked`
+- **WebSocket Broadcast:** `delegation_update` (event: `revoked`) to group `delegation_<room_id>`
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["User Views Devices"] -->|GET /delegation/room_id/devices/| B["Verify JWT + License"]
+    A["POST /delegation/room_id/devices/"] --> B["Verify JWT + License"]
     B -->|Denied| C["401/403"]
-    B -->|Allowed| D["Query Devices"]
-    D -->|Return| E["200 Paginated Device Results"]
-    
-    F["User Registers Device"] -->|POST /delegation/room_id/devices/| G["Verify JWT + License"]
-    G -->|Denied| H["401/403"]
-    G -->|Allowed| I["Check Duplicate"]
-    I -->|Exists| J["400 Already Registered"]
-    I -->|New| K["Create DeviceDelegation"]
-    K -->|Return| L["201 Device Object"]
-    
-    M["Owner Delegates Control"] -->|POST /delegation/room_id/devices/device_id/delegate/| N["Verify JWT"]
-    N -->|Invalid| O["401 Unauthorized"]
-    N -->|Valid| P["Verify Device Owner"]
-    P -->|Not Owner| Q["403 Forbidden"]
-    P -->|Owner| R["Validate Friend"]
-    R -->|Self| S["400 Cannot Delegate to Self"]
-    R -->|Valid| T["Set delegated_to = friend"]
-    T -->|Broadcast via WebSocket| U["200 Updated Device"]
-    
-    V["Owner Revokes Control"] -->|POST /delegation/room_id/devices/device_id/revoke/| W["Verify JWT + Owner"]
-    W -->|Denied| X["401/403"]
-    W -->|Allowed| Y["Set delegated_to = null, status = revoked"]
-    Y -->|Broadcast via WebSocket| Z["200 Updated Device"]
-    
-    AA["User Checks Status"] -->|GET /delegation/room_id/devices/device_id/status/| AB["Verify JWT + License"]
-    AB -->|Denied| AC["401/403"]
-    AB -->|Allowed| AD["Return Device Object"]
-    AD -->|Return| AE["200 Device Object"]
-    
-    style A fill:#e1f5ff
-    style F fill:#e1f5ff
-    style M fill:#e1f5ff
-    style V fill:#e1f5ff
-    style AA fill:#e1f5ff
-    style E fill:#c8e6c9
-    style L fill:#c8e6c9
-    style U fill:#c8e6c9
-    style Z fill:#c8e6c9
-    style AE fill:#c8e6c9
+    B -->|OK| D["Check Duplicate"]
+    D -->|Exists| E["409 Already Registered"]
+    D -->|New| F["Create DeviceDelegation"]
+    F --> G["201 Device Object"]
+
+    H["POST .../delegate/"] --> I["Verify JWT + Device Owner"]
+    I -->|Not Owner| J["403 Forbidden"]
+    I -->|Owner| K["Validate friend_id"]
+    K -->|Self| L["400 Cannot Self-Delegate"]
+    K -->|Valid| M["Set delegated_to = friend"]
+    M --> N["Broadcast: delegation_update (delegated)"]
+    N --> O["200 Updated Device"]
+
+    P["POST .../revoke/"] --> Q["Verify JWT + Device Owner"]
+    Q -->|Not Owner| R["403 Forbidden"]
+    Q -->|Owner| S["Clear delegated_to, status=revoked"]
+    S --> T["Broadcast: delegation_update (revoked)"]
+    T --> U["200 Updated Device"]
 ```
 
 ---
 
 ## WebSocket Endpoints
 
-All three music services support real-time updates via **Django Channels** WebSocket connections. Clients receive live updates when other users modify the shared state.
+All music services push real-time updates to connected clients via **Django Channels**.
 
 ### Schema
 
-| WebSocket Path | Service | Group Name | Auth | Events Received |
-|----------------|---------|------------|------|-----------------|
-| `ws/events/<room_id>/` | Music Track Vote | `vote_<room_id>` | JWT via `?token=` | `vote_update` |
-| `ws/playlists/<room_id>/` | Music Playlist Editor | `playlist_<room_id>` | JWT via `?token=` | `playlist_update` |
-| `ws/delegation/<room_id>/` | Music Control Delegation | `delegation_<room_id>` | JWT via `?token=` | `delegation_update` |
+| WebSocket Path | Service | Channel Group | Auth | Events |
+|----------------|---------|---------------|------|--------|
+| `ws/events/<room_id>/` | Track Vote | `vote_<room_id>` | `?token=<jwt>` | `initial_state`, `track.added`, `vote.update`, `track.removed` |
+| `ws/delegation/<room_id>/` | Delegation | `delegation_<room_id>` | `?token=<jwt>` | `initial_state`, `delegation_update` |
 
-### Details
+### Connection
 
-**Connection**
-- **URL Format:** `ws://<host>/ws/<service>/<room_id>/?token=<access_token>`
-- **Authentication:** JWT access token passed as query parameter `?token=<jwt>`
-- **Middleware:** `JWTAuthMiddleware` validates the token before the consumer runs
-- **On Connect:**
-  - Token validated → user authenticated
-  - Room access verified (visibility + membership)
-  - If denied → connection closed immediately
-  - If allowed → client joins the room group and receives `initial_state` message
+- **URL:** `ws://<host>/ws/<service>/<room_id>/?token=<access_jwt>`
+- **Auth:** JWT passed as query param — validated by `JWTAuthMiddleware` before the consumer runs
+- **On connect failure** (invalid token / no room access): connection is closed immediately
+- **On success:** client is added to the room group and receives an `initial_state` message
 
-**Real-time Geo-fencing Decision**
-- **Persistence:** WebSocket connections are read-only. Once a connection is established (passing initial geo-fencing checks), it is allowed to persist indefinitely even if the user leaves the geo-fenced area.
-- **Enforcement:** All mutations (voting, suggesting tracks, moving tracks, etc.) are performed via the REST API, where geo-fencing is strictly enforced on every request. Read-only real-time updates carry no business risk if received outside the venue.
+### Messages
 
-**Initial State Message (sent on connect):**
+**initial_state** (sent once on connect):
 ```json
 {
   "type": "initial_state",
-  "tracks": [ ... ]  // or "devices" for delegation
+  "tracks": [ ... ]
 }
 ```
 
-**Vote Update Message:**
+**track.added** (after `POST /api/events/<room_id>/tracks/`):
 ```json
 {
-  "type": "vote_update",
+  "type": "track.added",
+  "tracks": [ ... ]
+}
+```
+
+**vote.update** (after `POST .../vote/`):
+```json
+{
+  "type": "vote.update",
   "tracks": [
-    { "id": 1, "title": "...", "vote_count": 13, ... },
-    { "id": 2, "title": "...", "vote_count": 8, ... }
+    { "id": "1", "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh", "title": "Blinding Lights", "votes": 13, "vote_count": 13, "rank": 1, ... },
+    { "id": "2", "spotifyId": "3n3Ppam7vgaVa1iaRUIOKE", "title": "Shape of You", "votes": 8, "vote_count": 8, "rank": 2, ... }
   ]
 }
 ```
 
-**Playlist Update Message:**
+**track.removed** (after `DELETE /api/events/<room_id>/tracks/<track_id>/`):
 ```json
 {
-  "type": "playlist_update",
-  "tracks": [
-    { "id": 1, "title": "...", "position": 0, ... },
-    { "id": 2, "title": "...", "position": 1, ... }
-  ]
+  "type": "track.removed",
+  "tracks": [ ... ]
 }
 ```
 
-**Delegation Update Message:**
+**delegation_update** (after delegate or revoke):
 ```json
 {
   "type": "delegation_update",
@@ -1608,165 +1058,150 @@ All three music services support real-time updates via **Django Channels** WebSo
     "id": 1,
     "device_name": "Living Room Speaker",
     "delegated_to_id": 7,
-    "status": "active",
-    ...
+    "status": "active"
   }
 }
 ```
 
-**Disconnection:**
-- Client is automatically removed from the room group
-- No cleanup required on the server side
+### Real-time Geo-fencing Note
+
+WebSocket connections are **read-only** — they only receive data. Geo-fencing is enforced on every **REST API mutation** (suggest, vote, delegate). A connected client outside the geo-fence simply can't execute any mutation; they can only watch the updates.
 
 ### Flowchart
 
 ```mermaid
 graph TD
-    A["Client Opens WebSocket"] -->|ws://host/ws/service/room_id/?token=jwt| B["JWTAuthMiddleware"]
-    B -->|Invalid Token| C["Connection Closed"]
-    B -->|Valid Token| D["Consumer.connect"]
-    D -->|Check Room Access| E{Has Access?}
+    A["Client connects ws://host/ws/service/room_id/?token=jwt"] --> B["JWTAuthMiddleware"]
+    B -->|Invalid token| C["Connection Closed"]
+    B -->|Valid| D["Consumer.connect()"]
+    D --> E{"Room Access?"}
     E -->|No| F["Connection Closed"]
     E -->|Yes| G["Join Group: service_room_id"]
-    G -->|Send| H["initial_state Message"]
-    
-    I["Another User Performs Action"] -->|REST API| J["View Processes Request"]
-    J -->|Success| K["channel_layer.group_send"]
-    K -->|Broadcast to Group| L["Consumer Receives"]
-    L -->|Forward to Client| M["Client Receives Update"]
-    
-    N["Client Disconnects"] --> O["Leave Group"]
-    
-    style A fill:#e1f5ff
-    style H fill:#c8e6c9
-    style M fill:#c8e6c9
+    G --> H["Send: initial_state"]
+
+    I["User performs REST action"] --> J["View processes + mutates DB"]
+    J --> K["channel_layer.group_send(...)"]
+    K --> L["All consumers in group receive event"]
+    L --> M["Forward to WebSocket client"]
+
+    N["Client disconnects"] --> O["Leave Group (auto)"]
 ```
 
 ---
 
 ## License Management
 
-All three music services use a shared license check utility (`api/license_utils.py`) that validates user access before any action.
+All music services use a shared `check_license(user, room, user_lat, user_lon)` utility.
 
 ### License Levels
 
-| License Type | Behavior |
-|-------------|----------|
-| `default` | **Public rooms:** everyone can access. **Private rooms:** only owner + accepted members |
-| `invited` | Only the room owner + explicitly invited (accepted) users can act |
-| `location` | Must be within the geo-fence (haversine distance) + time window to act |
+| `license_type` | Rule |
+|----------------|------|
+| `default` | **Public rooms:** everyone allowed. **Private rooms:** owner + accepted members only |
+| `invited` | Owner + explicitly invited (accepted) users only — regardless of room visibility |
+| `location` | Must be within geo-fence radius (haversine) **and** within the active time window |
 
-### Check Flow
+### Flowchart
 
 ```mermaid
 graph TD
-    A["check_license called"] --> B{Room Active?}
-    B -->|No| C["DENIED: Room not active"]
-    B -->|Yes| D{Within Time Window?}
-    D -->|No| E["DENIED: Room not open yet / has ended"]
-    D -->|Yes| F{License Type?}
-    
-    F -->|default| G{Room Public?}
+    A["check_license called"] --> B{"Room is_active?"}
+    B -->|No| C["DENIED: Room inactive"]
+    B -->|Yes| D{"Within active_from/active_until?"}
+    D -->|No| E["DENIED: Outside time window"]
+    D -->|Yes| F{"license_type?"}
+
+    F -->|default| G{"Public?"}
     G -->|Yes| H["ALLOWED"]
-    G -->|No| I{Owner or Member?}
+    G -->|No| I{"Owner or Accepted Member?"}
     I -->|No| J["DENIED: Not a member"]
     I -->|Yes| H
-    
-    F -->|invited| K{Owner or Accepted Member?}
-    K -->|No| L["DENIED: Only invited users"]
+
+    F -->|invited| K{"Owner or Accepted Member?"}
+    K -->|No| L["DENIED: Invited only"]
     K -->|Yes| H
-    
-    F -->|location| M{Owner or Member?}
-    M -->|No and Private| N["DENIED: Not a member"]
-    M -->|Yes or Public| O{Geo-fence Set?}
-    O -->|No| H
-    O -->|Yes| P{Location Provided?}
-    P -->|No| Q["DENIED: Location required"]
-    P -->|Yes| R{Within Radius?}
-    R -->|No| S["DENIED: Too far away"]
-    R -->|Yes| H
-    
+
+    F -->|location| M{"Geo-fence configured?"}
+    M -->|No| H
+    M -->|Yes| N{"lat/lon provided?"}
+    N -->|No| O["DENIED: Location required"]
+    N -->|Yes| P{"Within radius?"}
+    P -->|No| Q["DENIED: Outside geo-fence"]
+    P -->|Yes| H
+
     style H fill:#c8e6c9
     style C fill:#ffcdd2
     style E fill:#ffcdd2
     style J fill:#ffcdd2
     style L fill:#ffcdd2
-    style N fill:#ffcdd2
+    style O fill:#ffcdd2
     style Q fill:#ffcdd2
-    style S fill:#ffcdd2
 ```
 
 ---
 
-## Summary Table
+## Summary Tables
 
 ### Endpoint Count by Controller
 
-| Controller | Endpoint Count | Key Operations |
-|------------|----------------|-----------------|
+| Controller | Endpoints | Key Operations |
+|------------|-----------|----------------|
 | Auth | 3 | Login, Token Refresh, Logout |
 | Register | 1 | User Registration |
-| Profile | 1 | Get/Update/Delete User Profile |
-| Password | 4 | Forgot, Reset, Deeplink, Change |
-| OAuth | 1 | Social Login |
-| Friends | 9 | Send/Accept/Decline Requests, List Friends, Search |
-| Rooms | 12 | CRUD, Members, Invitations, Leave |
-| Admin | 1 | View Action Logs |
-| Music Preferences | 1 | Get/Put/Patch User Preferences |
-| Music Track Vote | 3 | Suggest Track, Vote, Ranked List |
-| Music Playlist Editor | 4 | List, Add, Remove, Move Tracks |
+| Profile | 1 (3 methods) | GET / PATCH / DELETE profile |
+| Password | 4 | Forgot → Verify Code → Reset, Change |
+| OAuth | 1 | Google / Facebook login |
+| Friends | 9 | Send / Accept / Decline / Block, List, Search |
+| Rooms | 12 | CRUD, Members, Invitations, Kick, Leave |
+| Admin | 3 | User List/Detail/Delete + Action Logs |
+| Music Preferences | 1 (3 methods) | GET / PUT / PATCH preferences |
+| Music Track Vote | **4** | List (ranked), Suggest, Vote, **Delete** |
 | Music Control Delegation | 5 | List, Register, Delegate, Revoke, Status |
-| WebSocket | 3 | Vote Updates, Playlist Updates, Delegation Updates |
-| **Total** | **48** | - |
+| WebSocket | 2 | Vote Updates, Delegation Updates |
+| **Total** | **46** | |
 
 ### Authentication Summary
 
-| Type | Controllers | Details |
-|------|-------------|---------|
-| **Public (No Auth)** | Auth, Register, Password, OAuth | Account creation, login, password reset |
-| **Authenticated (JWT)** | Profile, Friends, Rooms, Music Preferences, Track Vote, Playlists, Delegation | User-specific data and actions |
-| **Staff/Admin (Role-based)** | Admin | Restricted to staff users only |
-| **WebSocket (JWT query param)** | Track Vote WS, Playlists WS, Delegation WS | Token passed as `?token=` query parameter |
-
-### Rate Limits
-
-| Endpoint | Limit | Scope |
-|----------|-------|-------|
-| `/api/token/` | 5 per minute | LoginRateThrottle (IP-based) |
-| `/api/signup/` | 3 per hour | RegisterRateThrottle (IP-based) |
-| `/api/forgot-password/` | 3 per hour | PasswordResetRateThrottle (IP-based) |
+| Type | Controllers |
+|------|-------------|
+| **Public (No Auth)** | Auth, Register, Password reset flow, OAuth |
+| **Authenticated (JWT Bearer)** | Profile, Friends, Rooms, Music Prefs, Track Vote, Delegation |
+| **Staff/Admin Role** | Admin users list + Action logs |
+| **WebSocket (JWT query param)** | `ws/events/*`, `ws/delegation/*` |
 
 ### Concurrency Strategies
 
 | Service | Strategy | Mechanism |
 |---------|----------|-----------|
-| Track Vote | Atomic increment | `transaction.atomic()` + `F('vote_count') + 1` + unique constraint |
-| Playlist Editor | Last write wins | `select_for_update()` + row-by-row position shifts |
+| Track Vote (vote) | Atomic increment | `transaction.atomic()` + `F('vote_count') + 1` + `Vote.unique_together` |
+| Track Vote (suggest) | Duplicate rejection | `Track.unique_together (room, spotify_id)` + `IntegrityError → 409` |
 | Delegation | Simple update | Single-row update (no concurrent conflict risk) |
 
-### Action Log Events (New)
+### Rate Limits
 
-| Service | Actions |
-|---------|---------|
-| Track Vote | `track_suggested`, `track_voted` |
-| Playlist Editor | `playlist_track_added`, `playlist_track_removed`, `playlist_track_moved` |
-| Delegation | `device_registered`, `control_delegated`, `control_revoked` |
+| Endpoint | Limit | Throttle Class |
+|----------|-------|----------------|
+| `/api/token/` | 10/min | `LoginRateThrottle` |
+| `/api/signup/` | 10/min | `RegisterRateThrottle` |
+| `/api/forgot-password/` | 5/min | `PasswordResetRateThrottle` |
+| All authenticated users | 300/min | `UserRateThrottle` |
+| Anonymous users | 60/min | `AnonRateThrottle` |
 
 ---
 
 ## Common Response Codes
 
-| Code | Meaning | Example Scenario |
-|------|---------|-------------------|
-| `200 OK` | Request successful, data returned | GET requests, successful updates |
-| `201 Created` | Resource created successfully | POST creating user, room, or request |
-| `204 No Content` | Request successful, no content returned | DELETE operations, logout |
-| `400 Bad Request` | Invalid input or business logic violation | Missing fields, duplicate entries, double vote |
-| `401 Unauthorized` | Missing or invalid authentication | Expired JWT, no token provided |
-| `403 Forbidden` | Authenticated but lacking permission | Non-owner delegating, license check failed |
-| `404 Not Found` | Resource doesn't exist | Invalid room/user/track/device ID |
-| `409 Conflict` | Resource conflict (e.g., duplicate email) | Registering with existing email |
-| `500 Internal Server Error` | Server error | Unexpected exception |
+| Code | Meaning | Example |
+|------|---------|---------|
+| `200 OK` | Success with data | GET, PATCH, vote, OAuth login |
+| `201 Created` | Resource created | POST signup, room, track, device |
+| `204 No Content` | Success, no body | DELETE room, leave room, delete track |
+| `400 Bad Request` | Validation / business logic error | Missing field, wrong password, non-vote room |
+| `401 Unauthorized` | Missing or invalid JWT | Expired or absent `Authorization` header |
+| `403 Forbidden` | Authenticated but unauthorised | Non-owner deleting, license check failed |
+| `404 Not Found` | Resource doesn't exist | Bad room/track/device ID |
+| `409 Conflict` | Duplicate resource | Duplicate email, duplicate spotifyId in room |
+| `500 Internal Server Error` | Unhandled server exception | Unexpected crash |
 
 ---
 
@@ -1775,44 +1210,36 @@ graph TD
 ```mermaid
 graph LR
     A["Client"] -->|POST /api/token/| B["Auth Service"]
-    B -->|Validate Creds| C{Valid?}
-    C -->|No| D["401 Unauthorized"]
-    C -->|Yes| E["Generate JWT Pair"]
-    E -->|Access + Refresh| F["Return Tokens"]
-    
-    F -->|Store Tokens| A
-    A -->|Request + Bearer Access| G["Protected Endpoint"]
-    G -->|Verify JWT| H{Valid?}
-    H -->|No| I["401 Unauthorized"]
-    H -->|Yes| J["Process Request"]
-    J -->|Return Data| A
-    
-    A -->|Access Expires| K["POST /api/token/refresh/"]
-    K -->|Send Refresh Token| L["Auth Service"]
-    L -->|Validate + Generate| M["New Access Token"]
-    M -->|Return Access| A
-    
-    A -->|User Logs Out| N["POST /api/logout/"]
-    N -->|Blacklist Token| O["Token Cache"]
-    O -->|Success| P["200 OK"]
-    P -->|Clear Tokens| A
+    B -->|Validate| C{"Valid?"}
+    C -->|No| D["401"]
+    C -->|Yes| E["JWT Pair (RS256)"]
+    E --> A
+
+    A -->|Authorization: Bearer access| F["Protected Endpoint"]
+    F -->|Verify JWT| G{"Valid?"}
+    G -->|No| H["401"]
+    G -->|Yes| I["Process + Return Data"]
+    I --> A
+
+    A -->|POST /api/token/refresh/| J["Rotate Refresh Token"]
+    J --> K["New Access + New Refresh"]
+    K --> A
+
+    A -->|POST /api/logout/| L["Blacklist Refresh Token"]
+    L --> M["200 Logged Out"]
 ```
 
 ---
 
-## Mermaid Diagram Export Notes
-
-All flowcharts in this document use Mermaid syntax and can be:
-- Viewed directly in GitHub markdown
-- Exported to SVG/PNG using Mermaid Live Editor
-- Embedded in documentation or presentations
-- Integrated into API documentation tools
-
----
-
-**Document Version:** 2.0  
-**Last Updated:** April 14, 2026  
-**Backend Framework:** Django REST Framework + DRF Spectacular + Django Channels  
-**Database:** PostgreSQL  
-**Authentication:** JWT (djangorestframework-simplejwt)  
-**Real-time:** Django Channels (WebSocket) with Redis channel layer
+**Document Version:** 3.0  
+**Last Updated:** April 16, 2026  
+**Changes in v3.0:**
+- ✅ Corrected Signup fields (`full_name`, `email`, `password`, `confirm_password`)
+- ✅ Updated Password reset flow to 6-digit code + verify endpoint
+- ✅ Fully rewrote Track Vote section: `spotifyId`, `albumArt`, `audioUrl`, `addedBy`, `votes`, `vote_count`, `rank`, `has_voted`
+- ✅ Added missing **DELETE track** endpoint with 409 / cascade / re-add behaviour
+- ✅ Updated Room schema to camelCase (`coverImage`, `isPublic`, `isLive`, `participantCount`, `host`, `createdAt`, `currentTrack`)
+- ✅ Updated WebSocket section: `track.added`, `vote.update`, `track.removed` event types
+- ✅ Added Admin user CRUD endpoints
+- ✅ Corrected Summary table (46 endpoints, 4 track-vote endpoints)
+- ✅ Added `track_deleted` to Action Log events

@@ -8,7 +8,7 @@ Covers:
   - Double-vote prevention (unique constraint)
   - Unauthorised access to private room
   - Voting in a non-vote room (type check)
-  - Deterministic tie-breaking when votes are equal
+  - Deterministic tie-breaking when vote_count are equal
   - Concurrent voting safety (same track and different tracks)
   - Concurrent suggestions (deterministic fallback)
   - Vote-while-delete race condition safety
@@ -64,12 +64,6 @@ class TrackVoteTestBase(TestCase):
             room_type='vote', visibility='private', license_type='invited',
         )
 
-        # Non-vote room
-        self.playlist_room = Room.objects.create(
-            owner=self.owner, name='Playlist Room',
-            room_type='playlist', visibility='public', license_type='default',
-        )
-
     def _auth(self, user):
         token = RefreshToken.for_user(user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token.access_token}')
@@ -78,9 +72,10 @@ class TrackVoteTestBase(TestCase):
         """Helper: create a track and return its id."""
         if user:
             self._auth(user)
+        import uuid
         resp = self.client.post(
             f'/api/events/{(room or self.room).id}/tracks/',
-            {'title': title, 'artist': artist}, format='json',
+            {'title': title, 'artist': artist, 'spotifyId': str(uuid.uuid4())}, format='json',
         )
         return resp.data['id'] if resp.status_code == 201 else None
 
@@ -92,26 +87,17 @@ class TestSuggestTrack(TrackVoteTestBase):
         self._auth(self.user)
         resp = self.client.post(
             f'/api/events/{self.room.id}/tracks/',
-            {'title': 'Bohemian Rhapsody', 'artist': 'Queen'},
+            {'title': 'Bohemian Rhapsody', 'artist': 'Queen', 'spotifyId': 'success-1'},
             format='json',
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(resp.data['title'], 'Bohemian Rhapsody')
         self.assertEqual(resp.data['vote_count'], 0)
 
-    def test_suggest_track_wrong_room_type(self):
-        self._auth(self.user)
-        resp = self.client.post(
-            f'/api/events/{self.playlist_room.id}/tracks/',
-            {'title': 'Test', 'artist': 'Test'},
-            format='json',
-        )
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_suggest_track_unauthenticated(self):
         resp = self.client.post(
             f'/api/events/{self.room.id}/tracks/',
-            {'title': 'Test', 'artist': 'Test'},
+            {'title': 'Test', 'artist': 'Test', 'spotifyId': 'unauth-1'},
             format='json',
         )
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -167,7 +153,7 @@ class TestVoteTrack(TrackVoteTestBase):
 
 
 class TestRankedList(TrackVoteTestBase):
-    """GET /api/events/<room_id>/tracks/ — ranked by votes."""
+    """GET /api/events/<room_id>/tracks/ — ranked by vote_count."""
 
     def test_tracks_ordered_by_votes(self):
         self._auth(self.owner)
@@ -188,7 +174,7 @@ class TestRankedList(TrackVoteTestBase):
         # Fetch ranked list
         resp = self.client.get(f'/api/events/{self.room.id}/tracks/')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        # Song B (2 votes) should be first
+        # Song B (2 vote_count) should be first
         self.assertEqual(resp.data['results'][0]['title'], 'Song B')
         self.assertEqual(resp.data['results'][1]['title'], 'Song A')
 
@@ -198,7 +184,7 @@ class TestRankedList(TrackVoteTestBase):
         self._create_track(title='First Song')
         self._create_track(title='Second Song')
 
-        # Both have 0 votes — Second Song was created later, should rank first
+        # Both have 0 vote_count — Second Song was created later, should rank first
         resp = self.client.get(f'/api/events/{self.room.id}/tracks/')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['results'][0]['title'], 'Second Song')
@@ -284,7 +270,7 @@ class TestGeoTimeVoting(TrackVoteTestBase):
         self._auth(self.owner)
         resp = self.client.post(
             f'/api/events/{self.geo_room.id}/tracks/',
-            {'title': 'Paris Song', 'artist': 'French', 'lat': 48.8566, 'lon': 2.3522},
+            {'title': 'Paris Song', 'artist': 'French', 'lat': 48.8566, 'lon': 2.3522, 'spotifyId': 'geo-1'},
             format='json',
         )
         track_id = resp.data['id']
@@ -299,7 +285,7 @@ class TestGeoTimeVoting(TrackVoteTestBase):
         self._auth(self.owner)
         resp = self.client.post(
             f'/api/events/{self.geo_room.id}/tracks/',
-            {'title': 'Paris Song', 'artist': 'French', 'lat': 48.8566, 'lon': 2.3522},
+            {'title': 'Paris Song', 'artist': 'French', 'lat': 48.8566, 'lon': 2.3522, 'spotifyId': 'geo-2'},
             format='json',
         )
         track_id = resp.data['id']
@@ -344,7 +330,7 @@ class TestConcurrentVoting(TransactionTestCase):
         self._auth(self.owner)
         resp = self.client.post(
             f'/api/events/{self.room.id}/tracks/',
-            {'title': 'Race Condition Song', 'artist': 'Threads'},
+            {'title': 'Race Condition Song', 'artist': 'Threads', 'spotifyId': 'race-1'},
             format='json',
         )
         track_id = resp.data['id']
@@ -384,8 +370,8 @@ class TestConcurrentVoting(TransactionTestCase):
     def test_concurrent_votes_on_different_tracks(self):
         """Voting on different tracks simultaneously should not interfere."""
         self._auth(self.owner)
-        r1 = self.client.post(f'/api/events/{self.room.id}/tracks/', {'title': 'Track Alpha', 'artist': 'A'}, format='json')
-        r2 = self.client.post(f'/api/events/{self.room.id}/tracks/', {'title': 'Track Beta', 'artist': 'B'}, format='json')
+        r1 = self.client.post(f'/api/events/{self.room.id}/tracks/', {'title': 'Track Alpha', 'artist': 'A', 'spotifyId': 'diff-1'}, format='json')
+        r2 = self.client.post(f'/api/events/{self.room.id}/tracks/', {'title': 'Track Beta', 'artist': 'B', 'spotifyId': 'diff-2'}, format='json')
         track_a_id = r1.data['id']
         track_b_id = r2.data['id']
 
@@ -427,7 +413,7 @@ class TestConcurrentVoting(TransactionTestCase):
         self._auth(self.owner)
         resp = self.client.post(
             f'/api/events/{self.room.id}/tracks/',
-            {'title': 'To Be Deleted', 'artist': 'Test'},
+            {'title': 'To Be Deleted', 'artist': 'Test', 'spotifyId': 'del-1'},
             format='json',
         )
         track_id = resp.data['id']
@@ -444,7 +430,7 @@ class TestConcurrentVoting(TransactionTestCase):
     def test_concurrent_suggestions_deterministic_ranking(self):
         """
         If multiple tracks are suggested at the EXACT same millisecond (same created_at
-        and 0 votes), they must be sorted completely deterministically via ID fallback.
+        and 0 vote_count), they must be sorted completely deterministically via ID fallback.
         """
         user_tokens =[]
         for i in range(5):
@@ -456,7 +442,7 @@ class TestConcurrentVoting(TransactionTestCase):
             try:
                 c = APIClient()
                 c.credentials(HTTP_AUTHORIZATION=f'Bearer {tk}')
-                c.post(f'/api/events/{self.room.id}/tracks/', {'title': title, 'artist': 'T'}, format='json')
+                c.post(f'/api/events/{self.room.id}/tracks/', {'title': title, 'artist': 'T', 'spotifyId': title}, format='json')
             finally:
                 connection.close()
 
