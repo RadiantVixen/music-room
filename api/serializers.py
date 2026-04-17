@@ -456,14 +456,20 @@ class RoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = [
-            'id', 'owner_id', 'owner_username', 'name', 'description',
+            'id', 'owner_id', 'owner_username',
+            'name', 'description',
             'room_type', 'visibility', 'license_type',
+            'cover_image', 'genres', 'allow_suggestions',
             'geo_lat', 'geo_lon', 'geo_radius_meters',
             'active_from', 'active_until',
             'is_active', 'is_open', 'member_count',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+        read_only_fields = [
+            'id', 'owner_id', 'owner_username',
+            'created_at', 'updated_at',
+            'is_open', 'member_count',
+        ]
 
     def get_member_count(self, obj):
         return obj.memberships.filter(status='accepted').count()
