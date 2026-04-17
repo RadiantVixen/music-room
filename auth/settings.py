@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     'channels',
     'api',
     'events',
-    'playlists',
     'delegation',
     'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
@@ -279,7 +278,6 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Password', 'description': 'Change, forgot and reset password'},
         {'name': 'OAuth', 'description': 'Social login (Google / Facebook)'},
         {'name': 'Events – Track Vote', 'description': 'Suggest tracks and vote in vote-type rooms'},
-        {'name': 'Playlists', 'description': 'Collaborative playlist editing in playlist-type rooms'},
         {'name': 'Delegation', 'description': 'Device control delegation in delegation-type rooms'},
     ],
 

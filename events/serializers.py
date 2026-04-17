@@ -1,51 +1,20 @@
-"""
-Serializers for the Music Track Vote service.
-"""
-
 from rest_framework import serializers
 from .models import Track, Vote
-from api.models import Room
+from api.models import CustomUser
 
 
-class TrackSerializer(serializers.ModelSerializer):
-
-    suggested_by_id = serializers.IntegerField(source='suggested_by.id', read_only=True)
-    suggested_by_username = serializers.CharField(source='suggested_by.username', read_only=True)
-    rank = serializers.SerializerMethodField(
-        help_text='1-based rank in the playlist. Deterministic: vote_count DESC → created_at DESC → id DESC.',
-    )
-    has_voted = serializers.SerializerMethodField(
-        help_text='True if the requesting user has already voted for this track.',
-    )
+class UserMiniSerializer(serializers.ModelSerializer):
+    """Matches the { name: '...', avatar: '...' } format for the frontend"""
+    name = serializers.CharField(source='username', read_only=True)
+    avatar = serializers.CharField(source='profile.avatar_url', read_only=True, default='https://i.pravatar.cc/100')
 
     class Meta:
-        model = Track
-        fields = [
-            'id', 'room', 'title', 'artist', 'external_url',
-            'suggested_by_id', 'suggested_by_username',
-            'vote_count', 'rank', 'has_voted', 'created_at',
-        ]
-        read_only_fields = [
-            'id', 'vote_count', 'created_at',
-            'suggested_by_id', 'suggested_by_username',
-            'rank', 'has_voted',
-        ]
-
-    def get_rank(self, obj):
-        return getattr(obj, '_rank', None)  
-
-    def get_has_voted(self, obj):
-        if not self.context.get('request') or not self.context['request'].user.is_authenticated:
-            return False
-        return getattr(obj, '_has_voted', False)
-
+        model = CustomUser
+        fields = ['name', 'avatar']
 
 
 def models_q_higher_vote(track):
-    """
-    Return a Q object matching tracks that rank HIGHER than the given track
-    using the deterministic ordering: -vote_count, -created_at, -id.
-    """
+    """Helper to calculate deterministic ranking."""
     from django.db.models import Q
     return (
         Q(vote_count__gt=track.vote_count)
@@ -54,25 +23,72 @@ def models_q_higher_vote(track):
     )
 
 
+class TrackSerializer(serializers.ModelSerializer):
+    """
+    Read serializer — returns the full track state to the frontend.
+    
+    Maps backend snake_case to frontend camelCase:
+      spotify_id → spotifyId
+      album_art  → albumArt
+      audio_url  → audioUrl
+      vote_count → votes (+ raw vote_count for backend tests)
+      suggested_by → addedBy (nested user mini)
+    """
+    id = serializers.CharField(read_only=True)
+    spotifyId = serializers.CharField(source='spotify_id', read_only=True)
+    albumArt = serializers.URLField(source='album_art', read_only=True)
+    audioUrl = serializers.URLField(source='audio_url', read_only=True)
+    addedBy = UserMiniSerializer(source='suggested_by', read_only=True)
+    
+    # Map the backend 'vote_count' integer to the frontend 'votes' key
+    votes = serializers.IntegerField(source='vote_count', read_only=True)
+    
+    # We keep vote_count here so the backend tests don't break
+    vote_count = serializers.IntegerField(read_only=True)
+    
+    # Restored dynamic logic for the tests
+    rank = serializers.SerializerMethodField()
+    has_voted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Track
+        fields = [
+            'id', 'spotifyId', 'title', 'artist', 'album', 'albumArt', 
+            'duration', 'votes', 'vote_count', 'addedBy', 'audioUrl',
+            'rank', 'has_voted',
+        ]
+
+    def get_rank(self, obj):
+        # Allow view annotations to override this for performance
+        if hasattr(obj, '_rank'):
+            return obj._rank
+        higher = Track.objects.filter(room=obj.room).filter(models_q_higher_vote(obj)).count()
+        return higher + 1
+
+    def get_has_voted(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            # Check if annotated by the view
+            return getattr(obj, '_has_voted', False)
+        # Fallback if not annotated
+        return Vote.objects.filter(track=obj, user=request.user).exists()
+
+
 class TrackCreateSerializer(serializers.Serializer):
-    """Validates input when suggesting a new track in a vote room."""
-    title = serializers.CharField(max_length=255, help_text='Track title')
-    artist = serializers.CharField(max_length=255, help_text='Artist / band name')
-    external_url = serializers.URLField(
-        required=False,
-        allow_blank=True,
-        help_text='Optional link to Spotify / YouTube',
-    )
-
-
-class VoteSerializer(serializers.Serializer):
     """
-    No input needed — the track_id comes from the URL
-    and the user from the request.
-    This serializer exists for documentation clarity.
+    Write serializer — what the frontend POSTs when adding a Spotify track.
+    
+    spotifyId is REQUIRED — this is the non-negotiable Spotify track identifier
+    that prevents duplicates and ensures data consistency across all clients.
     """
-    pass
-
+    spotifyId = serializers.CharField(max_length=255, help_text='Spotify Track ID (required)')
+    title = serializers.CharField(max_length=255)
+    artist = serializers.CharField(max_length=255)
+    album = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    albumArt = serializers.URLField(required=False, allow_blank=True)
+    duration = serializers.IntegerField(required=False, default=0)
+    audioUrl = serializers.URLField(required=False, allow_blank=True)
+    
 
 class VoteResponseSerializer(serializers.Serializer):
     """Response after a successful vote."""

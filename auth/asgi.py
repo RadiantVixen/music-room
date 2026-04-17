@@ -21,7 +21,6 @@ from django.core.asgi import get_asgi_application
 from api.ws_auth import JWTAuthMiddleware
 
 import events.routing
-import playlists.routing
 import delegation.routing
 
 application = ProtocolTypeRouter({
@@ -29,7 +28,6 @@ application = ProtocolTypeRouter({
     'websocket': JWTAuthMiddleware(
         URLRouter(
             events.routing.websocket_urlpatterns
-            + playlists.routing.websocket_urlpatterns
             + delegation.routing.websocket_urlpatterns
         )
     ),

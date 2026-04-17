@@ -448,48 +448,56 @@ class RoomMembershipSerializer(serializers.ModelSerializer):
 
 
 class RoomSerializer(serializers.ModelSerializer):
-    owner_id = serializers.IntegerField(source='owner.id', read_only=True)
-    owner_username = serializers.CharField(source='owner.username', read_only=True)
-    member_count = serializers.SerializerMethodField()
-    is_open = serializers.SerializerMethodField()
+    coverImage = serializers.URLField(source='cover_image', read_only=True)
+    isPublic = serializers.SerializerMethodField()
+    isLive = serializers.BooleanField(source='is_live', read_only=True)
+    participantCount = serializers.IntegerField(source='participant_count', read_only=True)
+    host = serializers.CharField(source='owner.username', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    currentTrack = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
         fields = [
-            'id', 'owner_id', 'owner_username',
-            'name', 'description',
+            'id', 'name', 'description', 'coverImage',
+            'isPublic', 'isLive', 'participantCount', 'host',
+            'genres', 'createdAt', 'currentTrack',
+            # Keep original fields for backward compatibility/internal use if needed
             'room_type', 'visibility', 'license_type',
-            'cover_image', 'genres', 'allow_suggestions',
-            'geo_lat', 'geo_lon', 'geo_radius_meters',
-            'active_from', 'active_until',
-            'is_active', 'is_open', 'member_count',
-            'created_at', 'updated_at',
         ]
-        read_only_fields = [
-            'id', 'owner_id', 'owner_username',
-            'created_at', 'updated_at',
-            'is_open', 'member_count',
-        ]
+        read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'isLive', 'coverImage', 'currentTrack']
 
-    def get_member_count(self, obj):
-        return obj.memberships.filter(status='accepted').count()
+    def get_isPublic(self, obj):
+        return obj.visibility == 'public'
 
-    def get_is_open(self, obj):
-        return obj.is_open()
-
-    def validate(self, attrs):
-        license_type = attrs.get('license_type', 'default')
-        if license_type == 'location':
-            if not all([attrs.get('geo_lat'), attrs.get('geo_lon'), attrs.get('geo_radius_meters')]):
-                raise serializers.ValidationError(
-                    'geo_lat, geo_lon and geo_radius_meters are required for location-restricted rooms.'
-                )
-        return attrs
+    def get_currentTrack(self, obj):
+        """
+        If this is a vote-type room, returns the top-ranked track.
+        Otherwise, returns null.
+        """
+        if obj.room_type != 'vote':
+            return None
+        
+        from events.models import Track
+        from events.serializers import TrackSerializer
+        
+        # Get the track with the highest vote count (deterministic tie-breaking)
+        top_track = Track.objects.filter(room=obj).order_by('-vote_count', '-created_at', '-id').first()
+        if top_track:
+            # We don't pass context here to avoid issues, or we can pass self.context
+            return TrackSerializer(top_track, context=self.context).data
+        return None
 
 
 class RoomCreateSerializer(RoomSerializer):
+    # Overwrite source for creation to allow camelCase input
+    coverImage = serializers.URLField(source='cover_image', required=False, allow_blank=True)
+    isLive = serializers.BooleanField(source='is_live', required=False, default=False)
+    
     class Meta(RoomSerializer.Meta):
-        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+        fields = RoomSerializer.Meta.fields + ['visibility', 'license_type', 'room_type']
+        read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'currentTrack']
+
 
 
 class InviteToRoomSerializer(serializers.Serializer):

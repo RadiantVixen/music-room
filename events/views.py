@@ -110,11 +110,13 @@ class TrackListCreateView(generics.GenericAPIView):
         responses={201: TrackSerializer},
     )
     def post(self, request, room_id):
+        # ── VALIDATION GATE ──────────────────────────────────────────────
+        # 1. Room type check
         room, err = _get_vote_room(room_id)
         if err:
             return err
 
-        # License check
+        # 2. License / geo-fence check (BEFORE any mutation)
         user_lat = request.data.get('lat')
         user_lon = request.data.get('lon')
         allowed, reason = check_license(
@@ -125,16 +127,29 @@ class TrackListCreateView(generics.GenericAPIView):
         if not allowed:
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
+        # 3. Input validation & normalization
         serializer = TrackCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        track = Track.objects.create(
-            room=room,
-            title=serializer.validated_data['title'],
-            artist=serializer.validated_data['artist'],
-            external_url=serializer.validated_data.get('external_url', ''),
-            suggested_by=request.user,
-        )
+        # ── MUTATION ─────────────────────────────────────────────────────
+        try:
+            track = Track.objects.create(
+                room=room,
+                spotify_id=serializer.validated_data['spotifyId'],
+                title=serializer.validated_data['title'],
+                artist=serializer.validated_data['artist'],
+                album=serializer.validated_data.get('album', ''),
+                album_art=serializer.validated_data.get('albumArt', ''),
+                duration=serializer.validated_data.get('duration', 0),
+                audio_url=serializer.validated_data.get('audioUrl', ''),
+                suggested_by=request.user,
+            )
+        except IntegrityError:
+            return Response(
+                {'detail': 'This track already exists in this room.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
         log_action(request, 'track_suggested', f'Track id={track.id} in room {room_id}')
 
         # Broadcast new track to all connected clients

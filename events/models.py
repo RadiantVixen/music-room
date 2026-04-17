@@ -2,7 +2,7 @@
 Models for the Music Track Vote service.
 
 A Room with room_type='vote' acts as a voting event.
-Users suggest tracks and vote on them.  The track list is
+Users suggest tracks and vote on them. The track list is
 ranked by vote_count (descending).
 """
 
@@ -14,41 +14,37 @@ from api.models import Room
 class Track(models.Model):
     """
     A music track suggested inside a vote-type room.
-    The vote_count field is incremented atomically via F() expressions
-    to prevent race conditions under concurrent voting.
+    The vote_count field is incremented atomically via F() expressions.
     """
     room = models.ForeignKey(
-        Room,
-        on_delete=models.CASCADE,
-        related_name='tracks',
-        help_text='The vote-type room this track belongs to.',
+        Room, on_delete=models.CASCADE, related_name='tracks',
+        help_text='The vote-type room this track belongs to.'
+    )
+    spotify_id = models.CharField(
+        max_length=255,
+        default='',
+        help_text='Unique Spotify Track ID (e.g. 4iV5W9uYEdYUVa79Axb7Rh)',
     )
     title = models.CharField(max_length=255, help_text='Track title')
     artist = models.CharField(max_length=255, help_text='Artist / band name')
-    external_url = models.URLField(
-        blank=True,
-        help_text='Optional link to Spotify, YouTube, etc.',
-    )
+    
+    # --- Spotify Data Fields ---
+    album = models.CharField(max_length=255, blank=True, help_text='Album name')
+    album_art = models.URLField(blank=True, null=True, help_text='URL to album cover')
+    duration = models.IntegerField(default=0, help_text='Duration in seconds')
+    audio_url = models.URLField(blank=True, null=True, help_text='Spotify 30s preview_url')
+    # ---------------------------
+
     suggested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='suggested_tracks',
-        help_text='The user who suggested this track.',
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='suggested_tracks'
     )
-    vote_count = models.IntegerField(
-        default=0,
-        help_text='Total number of votes — updated atomically.',
-    )
+    vote_count = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        unique_together = ('room', 'spotify_id')  # one track per room
         ordering = ['-vote_count', '-created_at', '-id']
-        # ── Deterministic tie-breaking ────────────────────────────────
-        # 1. vote_count DESC → most voted track first
-        # 2. created_at DESC → when votes are equal, the newer track wins
-        # 3. id DESC        → absolute tiebreaker when timestamps collide
-        # This guarantees every client produces the exact same order.
 
     def __str__(self):
         return f'{self.title} by {self.artist} ({self.vote_count} votes)'
