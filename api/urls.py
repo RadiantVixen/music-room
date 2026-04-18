@@ -1,8 +1,9 @@
+from api.spotify_service import search_spotify_tracks
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
+from .views import SpotifyTrackSearchView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
 from .views import UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, VerifyResetCodeView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
@@ -78,6 +79,8 @@ urlpatterns = [
     path('rooms/<int:pk>/invitation/', RoomInvitationResponseView.as_view(), name='room-invitation-response'),
     path('rooms/<int:pk>/members/<int:user_id>/', KickMemberView.as_view(), name='room-kick'),
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
+
+    path('tracks/search/', SpotifyTrackSearchView.as_view(), name='spotify-track-search'),
 
 
     # ── Admin: action logs ────────────────────────────────────────────────────

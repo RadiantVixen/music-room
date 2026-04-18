@@ -174,9 +174,9 @@ class Room(models.Model):
     
     # --- New fields added to support Frontend Mock Data ---
     cover_image = models.URLField(blank=True, null=True, help_text="URL for the room's cover art")
-    is_live = models.BooleanField(default=False, help_text="Is the room currently active/live?")
+    # is_live = models.BooleanField(default=False, help_text="Is the room currently active/live?")
     genres = models.JSONField(default=list, blank=True, help_text='List of genres e.g., ["Pop", "EDM"]')
-    participant_count = models.IntegerField(default=0, help_text="Number of listeners currently in the room")
+    # participant_count = models.IntegerField(default=0, help_text="Number of listeners currently in the room")
     # ------------------------------------------------------
 
     # Location / time restriction (used when license_type == LOCATION)
@@ -190,6 +190,14 @@ class Room(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def is_live(self):
+        return self.is_active and self.is_open()
+
+    @property
+    def participant_count(self):
+        return self.memberships.filter(status='accepted').count() + 1
 
     class Meta:
         ordering = ['-created_at']

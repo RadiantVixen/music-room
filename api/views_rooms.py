@@ -7,6 +7,8 @@ Room management views
   - List public rooms / my rooms
 """
 
+from urllib import request
+
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -28,6 +30,7 @@ from .models import (
 from .serializers import (
     InviteToRoomSerializer,
     RoomCreateSerializer,
+    RoomCreateUpdateSerializer,
     RoomMembershipActionSerializer,
     RoomMembershipSerializer,
     RoomSerializer,
@@ -98,21 +101,28 @@ class RoomListCreateView(APIView):
     @extend_schema(
         tags=['Rooms'],
         operation_id='rooms_create',
-        request=RoomCreateSerializer,
+        request=RoomCreateUpdateSerializer,
         responses={201: RoomSerializer},
     )
     def post(self, request):
-        serializer = RoomCreateSerializer(data=request.data, context={'request': request})
+        serializer = RoomCreateUpdateSerializer(
+            data=request.data,
+            context={'request': request},
+        )
         serializer.is_valid(raise_exception=True)
         room = serializer.save(owner=request.user)
-        log_action(request, 'room_created', f'Room id={room.id} name={room.name}')
-        return Response(RoomSerializer(room, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
+        log_action(request, 'room_created', f'Room id={room.id} name={room.name}')
+        return Response(
+            RoomSerializer(room, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 class RoomDetailView(APIView):
     """
     GET    /api/rooms/<pk>/  — room details
-    PATCH  /api/rooms/<pk>/  — update room (owner only)
+    PUT    /api/rooms/<pk>/  — full update room (owner only)
+    PATCH  /api/rooms/<pk>/  — partial update room (owner only)
     DELETE /api/rooms/<pk>/  — delete room (owner only)
     """
 
@@ -130,23 +140,60 @@ class RoomDetailView(APIView):
     def get(self, request, pk):
         room = self._get_room(pk)
         if not _user_can_access_room(request.user, room):
-            return Response({'detail': 'You do not have access to this room.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'detail': 'You do not have access to this room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return Response(RoomSerializer(room, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['Rooms'],
+        operation_id='rooms_update',
+        request=RoomCreateUpdateSerializer,
+        responses={200: RoomSerializer},
+    )
+    def put(self, request, pk):
+        room = self._get_room(pk)
+        if room.owner != request.user:
+            return Response(
+                {'detail': 'Only the room owner can update this room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = RoomCreateUpdateSerializer(
+            room,
+            data=request.data,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        room = serializer.save()
+
+        log_action(request, 'room_updated', f'Room id={pk}')
         return Response(RoomSerializer(room, context={'request': request}).data)
 
     @extend_schema(
         tags=['Rooms'],
         operation_id='rooms_partial_update',
-        request=RoomSerializer,
+        request=RoomCreateUpdateSerializer,
         responses={200: RoomSerializer},
     )
     def patch(self, request, pk):
         room = self._get_room(pk)
         if room.owner != request.user:
-            return Response({'detail': 'Only the room owner can update this room.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'detail': 'Only the room owner can update this room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        serializer = RoomSerializer(room, data=request.data, partial=True, context={'request': request})
+        serializer = RoomCreateUpdateSerializer(
+            room,
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        room = serializer.save()
+
         log_action(request, 'room_updated', f'Room id={pk}')
         return Response(RoomSerializer(room, context={'request': request}).data)
 
@@ -158,12 +205,13 @@ class RoomDetailView(APIView):
     def delete(self, request, pk):
         room = self._get_room(pk)
         if room.owner != request.user:
-            return Response({'detail': 'Only the room owner can delete this room.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'detail': 'Only the room owner can delete this room.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         room.delete()
         log_action(request, 'room_deleted', f'Room id={pk}')
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
 class RoomMembersView(APIView):
     """
     GET /api/rooms/<pk>/members/ — list members

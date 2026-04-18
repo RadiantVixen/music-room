@@ -3,6 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import CustomUser, Profile, MusicPreferences, FriendRequest, Room, RoomMembership
 from django.utils.text import slugify
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema_field
 import re
 
 
@@ -452,7 +453,7 @@ class RoomSerializer(serializers.ModelSerializer):
     isPublic = serializers.SerializerMethodField()
     isLive = serializers.BooleanField(source='is_live', read_only=True)
     participantCount = serializers.IntegerField(source='participant_count', read_only=True)
-    host = serializers.CharField(source='owner.username', read_only=True)
+    host = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     currentTrack = serializers.SerializerMethodField()
 
@@ -467,38 +468,88 @@ class RoomSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'isLive', 'coverImage', 'currentTrack']
 
-    def get_isPublic(self, obj):
+    @extend_schema_field(serializers.BooleanField())
+    def get_isPublic(self, obj) -> bool:
         return obj.visibility == 'public'
 
-    def get_currentTrack(self, obj):
-        """
-        If this is a vote-type room, returns the top-ranked track.
-        Otherwise, returns null.
-        """
+    @extend_schema_field(serializers.JSONField(allow_null=True))
+    def get_currentTrack(self, obj) -> dict | None:
         if obj.room_type != 'vote':
             return None
-        
+
         from events.models import Track
         from events.serializers import TrackSerializer
-        
-        # Get the track with the highest vote count (deterministic tie-breaking)
+
         top_track = Track.objects.filter(room=obj).order_by('-vote_count', '-created_at', '-id').first()
         if top_track:
-            # We don't pass context here to avoid issues, or we can pass self.context
             return TrackSerializer(top_track, context=self.context).data
         return None
+    def get_host(self, obj):
+        request = self.context.get('request')
+
+        avatar = None
+        try:
+            if obj.owner.profile.avatar:
+                avatar = request.build_absolute_uri(obj.owner.profile.avatar.url) if request else obj.owner.profile.avatar.url
+            elif obj.owner.profile.avatar_url:
+                avatar = obj.owner.profile.avatar_url
+        except:
+            pass
+
+        return {
+            "id": obj.owner.id,
+            "username": obj.owner.username,
+            "displayName": obj.owner.first_name or obj.owner.username,
+            "avatar": avatar
+        }
 
 
 class RoomCreateSerializer(RoomSerializer):
-    # Overwrite source for creation to allow camelCase input
     coverImage = serializers.URLField(source='cover_image', required=False, allow_blank=True)
     isLive = serializers.BooleanField(source='is_live', required=False, default=False)
-    
+
     class Meta(RoomSerializer.Meta):
-        fields = RoomSerializer.Meta.fields + ['visibility', 'license_type', 'room_type']
         read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'currentTrack']
 
+class RoomCreateUpdateSerializer(serializers.ModelSerializer):
+    coverImage = serializers.URLField(source='cover_image', required=False, allow_blank=True)
+    isPublic = serializers.BooleanField(required=False)
+    votingPermission = serializers.ChoiceField(
+        choices=['everyone', 'invited', 'location'],
+        required=False
+    )
 
+    class Meta:
+        model = Room
+        fields = [
+            'name',
+            'description',
+            'room_type',
+            'coverImage',
+            'genres',
+            'isPublic',
+            'votingPermission',
+            'geo_lat',
+            'geo_lon',
+            'geo_radius_meters',
+            'active_from',
+            'active_until',
+        ]
+
+    def validate(self, attrs):
+        # visibility
+        is_public = attrs.pop('isPublic', True)
+        attrs['visibility'] = 'public' if is_public else 'private'
+
+        # license
+        permission = attrs.pop('votingPermission', 'everyone')
+        attrs['license_type'] = {
+            'everyone': 'default',
+            'invited': 'invited',
+            'location': 'location',
+        }[permission]
+
+        return attrs
 
 class InviteToRoomSerializer(serializers.Serializer):
     user_id = serializers.IntegerField(help_text='ID of the user to invite to the room')
@@ -513,4 +564,30 @@ class RoomMembershipActionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=['accept', 'decline'],
         help_text='"accept" or "decline" the invitation',
+    )
+
+
+
+
+class SpotifyTrackSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(
+        min_length=2,
+        help_text="Track or artist search query (minimum 2 characters).",
+    )
+
+
+class SpotifyTrackSearchResultSerializer(serializers.Serializer):
+    spotifyId = serializers.CharField(help_text="Spotify track ID")
+    title = serializers.CharField(help_text="Track title")
+    artist = serializers.CharField(help_text="Artist name(s), comma separated")
+    album = serializers.CharField(help_text="Album name", allow_blank=True)
+    albumArt = serializers.URLField(help_text="Album cover image URL", allow_blank=True)
+    duration = serializers.IntegerField(help_text="Duration in seconds")
+    audioUrl = serializers.URLField(
+        help_text="Spotify preview URL (30s) when available",
+        allow_blank=True,
+    )
+    spotifyUrl = serializers.URLField(
+        help_text="Spotify public track URL",
+        allow_blank=True,
     )

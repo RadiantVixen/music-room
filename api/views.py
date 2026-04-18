@@ -1,3 +1,4 @@
+from .spotify_service import search_spotify_tracks
 from .permissions import IsChatService
 from rest_framework import permissions, status, generics
 from rest_framework.response import Response
@@ -10,7 +11,8 @@ from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
     LogoutSerializer, TokenRefreshSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
-    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer,
+    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer, SpotifyTrackSearchQuerySerializer,
+    SpotifyTrackSearchResultSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -29,8 +31,10 @@ import os
 from .extend_schema import (
     login_schema, logout_schema, register_schema, profile_schema,
     change_password_schema, forgot_password_schema,
-    deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema,
+    deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema, 
+    spotify_track_search_schema,
 )
+from drf_spectacular.openapi import OpenApiParameter, OpenApiResponse
 from .logging_utils import log_action
 from .permissions import IsStaffRoleUser
 import random
@@ -38,6 +42,7 @@ from datetime import timedelta
 from django.utils import timezone
 from .models import CustomUser, Profile, PasswordResetCode
 from .serializers import VerifyResetCodeSerializer
+from api import extend_schema
 User = get_user_model()
 
 def generate_reset_code():
@@ -532,3 +537,22 @@ class UserAdminDetailView(APIView):
         )
 
 
+@spotify_track_search_schema
+class SpotifyTrackSearchView(APIView):
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+
+        if len(query) < 2:
+            return Response(
+                {"detail": "Query must be at least 2 characters."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            tracks = search_spotify_tracks(query=query, limit=10)
+            return Response(tracks, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"detail": "Spotify search failed.", "error": str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
