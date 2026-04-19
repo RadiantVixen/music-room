@@ -682,7 +682,7 @@ graph TD
 {
   "favorite_genres": ["jazz", "rock", "electronic"],
   "favorite_artists": ["Miles Davis", "Daft Punk"],
-  "favorite_tracks": ["track-spotify-id-1"],
+  "favorite_tracks": ["track-deezer-id-1"],
   "updated_at": "2026-04-10T08:00:00Z"
 }
 ```
@@ -703,11 +703,44 @@ graph TD
 | Endpoint | Method | Auth | Input | Output |
 |----------|--------|------|-------|--------|
 | `/api/events/<room_id>/tracks/` | GET | ✅ | — | Paginated Track list (ranked) |
-| `/api/events/<room_id>/tracks/` | POST | ✅ | Spotify track fields | Track object |
+| `/api/events/<room_id>/tracks/` | POST | ✅ | Deezer track fields | Track object |
 | `/api/events/<room_id>/tracks/<track_id>/vote/` | POST | ✅ | _(optional `lat`, `lon`)_ | `{ detail, track }` |
 | `/api/events/<room_id>/tracks/<track_id>/` | DELETE | ✅ | — | 204 No Content |
 
 > All endpoints require the room to have `room_type = "vote"`. This is validated on every request. Non-vote rooms respond with `400`.
+
+### Track Discovery Endpoint
+
+| Endpoint | Method | Auth | Input | Output |
+|----------|--------|------|-------|--------|
+| `/api/tracks/search/` | GET | ✅ | `?q=<query>` (min 2 chars) | Deezer track list |
+
+### GET /api/tracks/search/ — Search Deezer Tracks
+
+- **Purpose:** Search Deezer's public catalog and return normalized track metadata used by the mobile suggestions flow.
+- **Query Param:** `q` (required, minimum 2 characters).
+- **Provider:** Deezer public search API (no provider auth key required).
+
+**Success Response (200 OK):**
+```json
+[
+  {
+    "deezerId": "3135556",
+    "title": "Harder, Better, Faster, Stronger",
+    "artist": "Daft Punk",
+    "album": "Discovery",
+    "albumArt": "https://e-cdns-images.dzcdn.net/images/cover/mock/1000x1000-000000-80-0-0.jpg",
+    "duration": 224,
+    "audioUrl": "https://cdns-preview-m.dzcdn.net/stream/c-mock.mp3",
+    "deezerUrl": "https://www.deezer.com/track/3135556"
+  }
+]
+```
+
+**Error Responses:**
+- `400` — Query must be at least 2 characters
+- `401` — Missing/invalid JWT
+- `502` — Deezer provider request failed
 
 ---
 
@@ -725,13 +758,13 @@ graph TD
     "results": [
       {
         "id": "1",
-        "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+        "deezerId": "3135556",
         "title": "Blinding Lights",
         "artist": "The Weeknd",
         "album": "After Hours",
-        "albumArt": "https://i.scdn.co/image/ab67616d0000b273ef017e899c0547...",
+        "albumArt": "https://e-cdns-images.dzcdn.net/images/cover/mock/1000x1000-000000-80-0-0.jpg",
         "duration": 200,
-        "audioUrl": "https://p.scdn.co/mp3-preview/b61b3c0b0...",
+        "audioUrl": "https://cdns-preview-m.dzcdn.net/stream/c-mock.mp3",
         "votes": 12,
         "vote_count": 12,
         "rank": 1,
@@ -745,9 +778,9 @@ graph TD
   }
   ```
 - **Field Notes:**
-  - `spotifyId` — Spotify Track ID (unique within the room)
-  - `albumArt` — Spotify album cover URL
-  - `audioUrl` — Spotify 30-second preview URL (`preview_url`)
+  - `deezerId` — Deezer Track ID (unique within the room)
+  - `albumArt` — Deezer album cover URL
+  - `audioUrl` — Deezer 30-second preview URL (`preview`)
   - `duration` — duration in seconds
   - `votes` — camelCase alias for `vote_count` (frontend primary)
   - `vote_count` — integer, also exposed for backend/admin compatibility
@@ -761,44 +794,44 @@ graph TD
 
 ---
 
-### POST /api/events/\<room_id\>/tracks/ — Suggest a Spotify Track
+### POST /api/events/\<room_id\>/tracks/ — Suggest a Deezer Track
 
-- **Purpose:** Add a Spotify track to the room's vote queue.
-- **How:** The frontend fetches track metadata from Spotify, then POSTs it here. The backend stores it and never calls the Spotify API directly.
+- **Purpose:** Add a Deezer track to the room's vote queue.
+- **How:** The frontend fetches track metadata from Deezer, then POSTs it here. The backend stores it.
 - **License Check:** Enforced before mutation.
 
 **Request Body:**
 ```json
 {
-  "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+  "deezerId": "3135556",
   "title": "Blinding Lights",
   "artist": "The Weeknd",
   "album": "After Hours",
-  "albumArt": "https://i.scdn.co/image/ab67616d0000b273ef017e899c0547...",
+  "albumArt": "https://e-cdns-images.dzcdn.net/images/cover/mock/1000x1000-000000-80-0-0.jpg",
   "duration": 200,
-  "audioUrl": "https://p.scdn.co/mp3-preview/b61b3c0b0..."
+  "audioUrl": "https://cdns-preview-m.dzcdn.net/stream/c-mock.mp3"
 }
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `spotifyId` | ✅ Yes | Spotify Track ID — enforces `unique_together (room, spotify_id)` |
+| `deezerId` | ✅ Yes | Deezer Track ID — enforces `unique_together (room, deezer_id)` |
 | `title` | ✅ Yes | Track title |
 | `artist` | ✅ Yes | Artist name |
 | `album` | ❌ Optional | Album name |
 | `albumArt` | ❌ Optional | Album cover image URL |
 | `duration` | ❌ Optional | Duration in seconds (default 0) |
-| `audioUrl` | ❌ Optional | Spotify 30-second preview URL |
+| `audioUrl` | ❌ Optional | Deezer 30-second preview URL |
 
 - **For geo-restricted rooms:** also include `lat` (float) and `lon` (float) in the body.
 
 **Success Response (201 Created):** Track object (same shape as list results)
 
 **Error Responses:**
-- `400` — Missing required field, blank `spotifyId`, non-vote room
+- `400` — Missing required field, blank `deezerId`, non-vote room
 - `401` — Missing JWT
 - `403` — License check failed (not a member / outside geo-fence / outside time window)
-- `409 Conflict` — Same `spotifyId` already exists in this room
+- `409 Conflict` — Same `deezerId` already exists in this room
 
 **Log:** `track_suggested`  
 **WebSocket Broadcast:** `track.added` event sent to group `vote_<room_id>`
@@ -818,13 +851,13 @@ graph TD
   "detail": "Vote recorded.",
   "track": {
     "id": "1",
-    "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh",
+    "deezerId": "3135556",
     "title": "Blinding Lights",
     "artist": "The Weeknd",
     "album": "After Hours",
-    "albumArt": "https://i.scdn.co/image/...",
+    "albumArt": "https://e-cdns-images.dzcdn.net/images/cover/mock/1000x1000-000000-80-0-0.jpg",
     "duration": 200,
-    "audioUrl": "https://p.scdn.co/mp3-preview/...",
+    "audioUrl": "https://cdns-preview-m.dzcdn.net/stream/c-mock.mp3",
     "votes": 13,
     "vote_count": 13,
     "rank": 1,
@@ -853,7 +886,7 @@ graph TD
   ```json
   { "detail": "Only the room owner or the track suggester can delete this track." }
   ```
-- **Side Effects:** Cascade-deletes all `Vote` rows for this track; `unique_together` is released so the same `spotifyId` can be re-added.
+- **Side Effects:** Cascade-deletes all `Vote` rows for this track; `unique_together` is released so the same `deezerId` can be re-added.
 - **Log:** `track_deleted`  
 - **WebSocket Broadcast:** `track.removed` event sent to group `vote_<room_id>`
 
@@ -872,10 +905,10 @@ graph TD
     G -->|Denied| H["401"]
     G -->|Valid| I["License Check"]
     I -->|Denied| J["403"]
-    I -->|OK| K["Validate spotifyId (required)"]
+    I -->|OK| K["Validate deezerId (required)"]
     K -->|Missing/Blank| L["400 Bad Request"]
     K -->|Valid| M["CREATE Track (vote_count=0)"]
-    M -->|Duplicate spotifyId| N["409 Conflict"]
+    M -->|Duplicate deezerId| N["409 Conflict"]
     M -->|Success| O["201 Track Object"]
     O --> P["Broadcast: track.added"]
 
@@ -1035,8 +1068,8 @@ All music services push real-time updates to connected clients via **Django Chan
 {
   "type": "vote.update",
   "tracks": [
-    { "id": "1", "spotifyId": "4iV5W9uYEdYUVa79Axb7Rh", "title": "Blinding Lights", "votes": 13, "vote_count": 13, "rank": 1, ... },
-    { "id": "2", "spotifyId": "3n3Ppam7vgaVa1iaRUIOKE", "title": "Shape of You", "votes": 8, "vote_count": 8, "rank": 2, ... }
+    { "id": "1", "deezerId": "3135556", "title": "Blinding Lights", "votes": 13, "vote_count": 13, "rank": 1, ... },
+    { "id": "2", "deezerId": "1109731", "title": "Shape of You", "votes": 8, "vote_count": 8, "rank": 2, ... }
   ]
 }
 ```
@@ -1174,7 +1207,7 @@ graph TD
 | Service | Strategy | Mechanism |
 |---------|----------|-----------|
 | Track Vote (vote) | Atomic increment | `transaction.atomic()` + `F('vote_count') + 1` + `Vote.unique_together` |
-| Track Vote (suggest) | Duplicate rejection | `Track.unique_together (room, spotify_id)` + `IntegrityError → 409` |
+| Track Vote (suggest) | Duplicate rejection | `Track.unique_together (room, deezer_id)` + `IntegrityError → 409` |
 | Delegation | Simple update | Single-row update (no concurrent conflict risk) |
 
 ### Rate Limits
@@ -1200,7 +1233,7 @@ graph TD
 | `401 Unauthorized` | Missing or invalid JWT | Expired or absent `Authorization` header |
 | `403 Forbidden` | Authenticated but unauthorised | Non-owner deleting, license check failed |
 | `404 Not Found` | Resource doesn't exist | Bad room/track/device ID |
-| `409 Conflict` | Duplicate resource | Duplicate email, duplicate spotifyId in room |
+| `409 Conflict` | Duplicate resource | Duplicate email, duplicate deezerId in room |
 | `500 Internal Server Error` | Unhandled server exception | Unexpected crash |
 
 ---
@@ -1231,12 +1264,16 @@ graph LR
 
 ---
 
-**Document Version:** 3.0  
-**Last Updated:** April 16, 2026  
+**Document Version:** 3.1  
+**Last Updated:** April 19, 2026  
+**Changes in v3.1:**
+- ✅ Added `/api/tracks/search/` Deezer track discovery endpoint docs (`deezerId`, `deezerUrl`, `audioUrl`)
+- ✅ Aligned Track Vote docs with `deezer_id` uniqueness and Deezer preview semantics
+
 **Changes in v3.0:**
 - ✅ Corrected Signup fields (`full_name`, `email`, `password`, `confirm_password`)
 - ✅ Updated Password reset flow to 6-digit code + verify endpoint
-- ✅ Fully rewrote Track Vote section: `spotifyId`, `albumArt`, `audioUrl`, `addedBy`, `votes`, `vote_count`, `rank`, `has_voted`
+- ✅ Fully rewrote Track Vote section: `deezerId`, `albumArt`, `audioUrl`, `addedBy`, `votes`, `vote_count`, `rank`, `has_voted`
 - ✅ Added missing **DELETE track** endpoint with 409 / cascade / re-add behaviour
 - ✅ Updated Room schema to camelCase (`coverImage`, `isPublic`, `isLive`, `participantCount`, `host`, `createdAt`, `currentTrack`)
 - ✅ Updated WebSocket section: `track.added`, `vote.update`, `track.removed` event types

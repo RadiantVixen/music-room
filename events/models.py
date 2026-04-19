@@ -20,20 +20,16 @@ class Track(models.Model):
         Room, on_delete=models.CASCADE, related_name='tracks',
         help_text='The vote-type room this track belongs to.'
     )
-    spotify_id = models.CharField(
-        max_length=255,
-        default='',
-        help_text='Unique Spotify Track ID (e.g. 4iV5W9uYEdYUVa79Axb7Rh)',
-    )
+    
+    deezer_id = models.CharField(max_length=255, help_text='Deezer track ID')
     title = models.CharField(max_length=255, help_text='Track title')
     artist = models.CharField(max_length=255, help_text='Artist / band name')
-    
-    # --- Spotify Data Fields ---
     album = models.CharField(max_length=255, blank=True, help_text='Album name')
     album_art = models.URLField(blank=True, null=True, help_text='URL to album cover')
     duration = models.IntegerField(default=0, help_text='Duration in seconds')
-    audio_url = models.URLField(blank=True, null=True, help_text='Spotify 30s preview_url')
-    # ---------------------------
+    
+    # Update help text just for clarity
+    audio_url = models.URLField(blank=True, null=True, help_text='Deezer 30s preview_url')
 
     suggested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
@@ -43,7 +39,7 @@ class Track(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('room', 'spotify_id')  # one track per room
+        unique_together = ('room', 'deezer_id')  # one track per room
         ordering = ['-vote_count', '-created_at', '-id']
 
     def __str__(self):

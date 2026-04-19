@@ -28,14 +28,14 @@ class TrackSerializer(serializers.ModelSerializer):
     Read serializer — returns the full track state to the frontend.
     
     Maps backend snake_case to frontend camelCase:
-      spotify_id → spotifyId
+            deezer_id → deezerId
       album_art  → albumArt
       audio_url  → audioUrl
       vote_count → votes (+ raw vote_count for backend tests)
       suggested_by → addedBy (nested user mini)
     """
     id = serializers.CharField(read_only=True)
-    spotifyId = serializers.CharField(source='spotify_id', read_only=True)
+    deezerId = serializers.CharField(source='deezer_id', read_only=True)
     albumArt = serializers.URLField(source='album_art', read_only=True)
     audioUrl = serializers.URLField(source='audio_url', read_only=True)
     addedBy = UserMiniSerializer(source='suggested_by', read_only=True)
@@ -53,7 +53,7 @@ class TrackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Track
         fields = [
-            'id', 'spotifyId', 'title', 'artist', 'album', 'albumArt', 
+            'id', 'deezerId', 'title', 'artist', 'album', 'albumArt',
             'duration', 'votes', 'vote_count', 'addedBy', 'audioUrl',
             'rank', 'has_voted',
         ]
@@ -75,13 +75,8 @@ class TrackSerializer(serializers.ModelSerializer):
 
 
 class TrackCreateSerializer(serializers.Serializer):
-    """
-    Write serializer — what the frontend POSTs when adding a Spotify track.
-    
-    spotifyId is REQUIRED — this is the non-negotiable Spotify track identifier
-    that prevents duplicates and ensures data consistency across all clients.
-    """
-    spotifyId = serializers.CharField(max_length=255, help_text='Spotify Track ID (required)')
+    """What the frontend POSTs to the backend when adding a Deezer track"""
+    deezerId = serializers.CharField(max_length=255)
     title = serializers.CharField(max_length=255)
     artist = serializers.CharField(max_length=255)
     album = serializers.CharField(max_length=255, required=False, allow_blank=True)

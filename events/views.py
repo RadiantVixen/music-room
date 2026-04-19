@@ -135,7 +135,7 @@ class TrackListCreateView(generics.GenericAPIView):
         try:
             track = Track.objects.create(
                 room=room,
-                spotify_id=serializer.validated_data['spotifyId'],
+                deezer_id=serializer.validated_data['deezerId'], # <-- Changed here
                 title=serializer.validated_data['title'],
                 artist=serializer.validated_data['artist'],
                 album=serializer.validated_data.get('album', ''),

@@ -220,9 +220,6 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")        # use an App Passw
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
-
 # CORS — restrict to explicit origins (never use CORS_ALLOW_ALL_ORIGINS=True in production)
 # Default allows both 8080 (nginx-served Flutter web) and 8081 (local dev)
 CORS_ALLOW_ALL_ORIGINS = True
