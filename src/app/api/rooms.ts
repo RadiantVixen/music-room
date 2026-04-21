@@ -114,3 +114,67 @@ export const searchTracksRequest = async (query: string) => {
   });
   return data;
 };
+
+
+export const getDelegationDevicesRequest = async (roomId: number | string) => {
+  const { data } = await api.get(`/delegation/${roomId}/devices/`);
+  return data;
+};
+
+export const registerDelegationDeviceRequest = async (
+  roomId: number | string,
+  payload: {
+    device_identifier: string;
+    device_name: string;
+  }
+) => {
+  const { data } = await api.post(`/delegation/${roomId}/devices/`, payload);
+  return data;
+};
+
+export const delegateDeviceControlRequest = async (
+  roomId: number | string,
+  deviceId: number | string,
+  payload: { friend_id: number }
+) => {
+  const { data } = await api.post(
+    `/delegation/${roomId}/devices/${deviceId}/delegate/`,
+    payload
+  );
+  return data;
+};
+
+export const revokeDeviceControlRequest = async (
+  roomId: number | string,
+  deviceId: number | string
+) => {
+  const { data } = await api.post(
+    `/delegation/${roomId}/devices/${deviceId}/revoke/`
+  );
+  return data;
+};
+
+export const getDelegationDeviceStatusRequest = async (
+  roomId: number | string,
+  deviceId: number | string
+) => {
+  const { data } = await api.get(
+    `/delegation/${roomId}/devices/${deviceId}/status/`
+  );
+  return data;
+};
+
+export const sendDelegationControlActionRequest = async (
+  roomId: number | string,
+  deviceId: number | string,
+  payload: {
+    action_id: string;
+    action_type: "play" | "pause" | "skip" | "previous";
+  }
+) => {
+  const { data } = await api.post(
+    `/delegation/${roomId}/devices/${deviceId}/control/`,
+    payload
+  );
+  return data;
+};

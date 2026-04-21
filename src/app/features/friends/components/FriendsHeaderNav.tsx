@@ -1,10 +1,14 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+type RootStackParamList = {
+  AllUsers: undefined;
+};
+
 export default function FriendsHeaderNav() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -15,8 +19,8 @@ export default function FriendsHeaderNav() {
 
         <Text style={styles.title}>Friends</Text>
 
-        <TouchableOpacity>
-            <Ionicons name="person-add-outline" size={22} color="#fff" />
+        <TouchableOpacity onPress={() => navigation.navigate("AllUsers")}>
+          <Ionicons name="person-add-outline" size={22} color="#fff" />
         </TouchableOpacity>
         </View>
     </SafeAreaView>

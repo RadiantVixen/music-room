@@ -17,6 +17,7 @@ import { useAuthStore } from "../store/authStore";
 import ChangePasswordScreen from "../features/profile/components/ChangePasswordScreen";
 import FriendsListScreen from "../features/friends/screens/FriendsListScreen";
 import FriendProfileScreen from "../features/friends/screens/FriendProfileScreen";
+import AllUsersScreen from "../features/friends/screens/AllUsersScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -37,6 +38,7 @@ export type RootStackParamList = {
   
   FriendsList: undefined;
   FriendProfile: { userId: number };
+  AllUsers: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,6 +69,7 @@ return (
 
           <Stack.Screen name="FriendsList" component={FriendsListScreen} />
           <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
+          <Stack.Screen name="AllUsers" component={AllUsersScreen} />
         </>
       )}
     </Stack.Navigator>

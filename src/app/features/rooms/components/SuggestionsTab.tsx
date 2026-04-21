@@ -161,13 +161,8 @@ export default function SuggestionsTab({
           <Text style={styles.loadingText}>Searching tracks...</Text>
         </View>
       ) : (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item) => item.deezerId}
-          renderItem={renderItem}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
-          ListEmptyComponent={
+        <View style={styles.resultsContainer}>
+          {searchResults.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="search-outline" size={28} color="#777" />
               <Text style={styles.emptyTitle}>No results found</Text>
@@ -175,8 +170,12 @@ export default function SuggestionsTab({
                 Try another track name or artist.
               </Text>
             </View>
-          }
-        />
+          ) : (
+            searchResults.map((item) => (
+              <View key={item.deezerId}>{renderItem({ item })}</View>
+            ))
+          )}
+        </View>
       )}
     </View>
   );
@@ -266,6 +265,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 68,
     alignItems: "center",
+  },
+  resultsContainer: {
+    paddingTop: 16,
+    paddingBottom: 40,
   },
   addButtonDisabled: {
     opacity: 0.7,

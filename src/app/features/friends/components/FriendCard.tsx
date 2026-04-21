@@ -1,12 +1,20 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
-export default function FriendCard({ friend, onPress, onRemove }: any) {
+export default function FriendCard({
+  friend,
+  onPress,
+  onRemove,
+  onAdd,
+  isAdded,
+}: any) {
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.card}>
       <Image
         source={{
-          uri: friend.avatar || "https://i.pravatar.cc/150?img=12",
+          uri:
+            friend.avatar ||
+            friend.profile?.avatar ||
+            "https://i.pravatar.cc/150?img=12",
         }}
         style={styles.avatar}
       />
@@ -18,12 +26,25 @@ export default function FriendCard({ friend, onPress, onRemove }: any) {
         <Text style={styles.username}>@{friend.username}</Text>
       </View>
 
-      <TouchableOpacity
-        onPress={onRemove}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="person-remove-outline" size={20} color="#ff5c5c" />
-      </TouchableOpacity>
+      {/* 🔥 ADD BUTTON */}
+      {onAdd ? (
+        <TouchableOpacity
+          style={[styles.addBtn, isAdded && styles.addedBtn]}
+          onPress={onAdd}
+          disabled={isAdded}
+        >
+          <Text style={styles.addText}>
+            {isAdded ? "Added" : "+ Add"}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* REMOVE BUTTON */}
+      {onRemove ? (
+        <TouchableOpacity onPress={onRemove}>
+          <Ionicons name="person-remove-outline" size={20} color="#ff5c5c" />
+        </TouchableOpacity>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -56,5 +77,21 @@ const styles = StyleSheet.create({
     color: "#8a8a8a",
     fontSize: 13,
     marginTop: 2,
+  },
+  addBtn: {
+    backgroundColor: "#9956F5",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+
+  addedBtn: {
+    backgroundColor: "#2A1F40",
+  },
+
+  addText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

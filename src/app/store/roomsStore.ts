@@ -12,6 +12,12 @@ import {
   suggestTrackRequest,
   deleteTrackRequest,
   searchTracksRequest,
+  getDelegationDevicesRequest,
+  registerDelegationDeviceRequest,
+  delegateDeviceControlRequest,
+  revokeDeviceControlRequest,
+  getDelegationDeviceStatusRequest,
+  sendDelegationControlActionRequest,
 } from "../api/rooms";
 
 type Track = {
@@ -52,6 +58,20 @@ type Room = {
   license_type?: "default" | "invited" | "location";
 };
 
+type DelegationDevice = {
+  id: number;
+  room: number;
+  device_identifier: string;
+  device_name: string;
+  owner_id: number;
+  owner_username: string;
+  delegated_to_id?: number | null;
+  delegated_to_username?: string | null;
+  status: "active" | "revoked";
+  created_at: string;
+  updated_at: string;
+};
+
 type RoomsState = {
   rooms: Room[];
   myRooms: Room[];
@@ -62,6 +82,8 @@ type RoomsState = {
   tracksLoading: boolean;
   searchLoading: boolean;
   searchResults: any[];
+  delegationDevices: DelegationDevice[];
+  delegationLoading: boolean;
 
   fetchRooms: (type?: "vote" | "delegation") => Promise<void>;
   fetchMyRooms: (type?: "vote" | "delegation") => Promise<void>;
@@ -98,6 +120,27 @@ type RoomsState = {
 
   clearRoomTracks: () => void;
   clearSearchResults: () => void;
+
+  fetchDelegationDevices: (roomId: number | string) => Promise<void>;
+  registerDelegationDevice: (
+    roomId: number | string,
+    payload: { device_identifier: string; device_name: string }
+  ) => Promise<void>;
+  delegateDeviceControl: (
+    roomId: number | string,
+    deviceId: number | string,
+    friendId: number
+  ) => Promise<void>;
+  revokeDeviceControl: (
+    roomId: number | string,
+    deviceId: number | string
+  ) => Promise<void>;
+  sendDelegationControlAction: (
+    roomId: number | string,
+    deviceId: number | string,
+    actionType: "play" | "pause" | "skip" | "previous"
+  ) => Promise<void>;
+  clearDelegationDevices: () => void;
 };
 
 export const useRoomsStore = create<RoomsState>((set, get) => ({
@@ -110,6 +153,8 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
   tracksLoading: false,
   searchLoading: false,
   searchResults: [],
+  delegationDevices: [],
+  delegationLoading: false,
 
   fetchRooms: async (type) => {
     set({ isLoading: true });
@@ -252,4 +297,92 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
   },
 
   clearSearchResults: () => set({ searchResults: [] }),
+
+    fetchDelegationDevices: async (roomId) => {
+    set({ delegationLoading: true });
+    try {
+      const data = await getDelegationDevicesRequest(roomId);
+      set({ delegationDevices: data.results ?? data });
+    } finally {
+      set({ delegationLoading: false });
+    }
+  },
+
+  registerDelegationDevice: async (roomId, payload) => {
+    set({ delegationLoading: true });
+    try {
+      const created = await registerDelegationDeviceRequest(roomId, payload);
+
+      set({
+        delegationDevices: [created, ...get().delegationDevices],
+      });
+    } finally {
+      set({ delegationLoading: false });
+    }
+  },
+
+  delegateDeviceControl: async (roomId, deviceId, friendId) => {
+    set({ delegationLoading: true });
+    try {
+      const updated = await delegateDeviceControlRequest(roomId, deviceId, {
+        friend_id: friendId,
+      });
+
+      set({
+        delegationDevices: get().delegationDevices.map((device) =>
+          String(device.id) === String(deviceId) ? updated : device
+        ),
+      });
+    } finally {
+      set({ delegationLoading: false });
+    }
+  },
+
+  revokeDeviceControl: async (roomId, deviceId) => {
+    set({ delegationLoading: true });
+    try {
+      const updated = await revokeDeviceControlRequest(roomId, deviceId);
+
+      set({
+        delegationDevices: get().delegationDevices.map((device) =>
+          String(device.id) === String(deviceId) ? updated : device
+        ),
+      });
+    } finally {
+      set({ delegationLoading: false });
+    }
+  },
+
+  fetchDelegationDeviceStatus: async (roomId: number | string, deviceId: number | string) => {
+    try {
+      const device = await getDelegationDeviceStatusRequest(roomId, deviceId);
+
+      set({
+        delegationDevices: get().delegationDevices.map((item) =>
+          String(item.id) === String(deviceId) ? device : item
+        ),
+      });
+
+      return device;
+    } catch {
+      return null;
+    }
+  },
+
+  sendDelegationControlAction: async (roomId, deviceId, actionType) => {
+    const actionId = `${deviceId}-${actionType}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+
+    const response = await sendDelegationControlActionRequest(roomId, deviceId, {
+      action_id: actionId,
+      action_type: actionType,
+    });
+
+    return response;
+  },
+
+  clearDelegationDevices: () => set({ delegationDevices: [] }),
+
+
 }));

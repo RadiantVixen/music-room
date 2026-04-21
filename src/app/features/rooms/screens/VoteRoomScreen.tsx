@@ -22,14 +22,20 @@ export default function VoteRoomScreen({ room }: { room: any }) {
     }
   }, [room?.id]);
 
-  const queue = useMemo(() => {
+  const sortedTracks = useMemo(() => {
     return [...roomTracks].sort((a, b) => (b.votes || 0) - (a.votes || 0));
   }, [roomTracks]);
 
-  const currentTrack = room?.currentTrack || queue[0] || null;
-  const nextWinningTrack =
-    queue.find((track) => String(track.id) !== String(currentTrack?.id)) || null;
+  const currentTrack = room?.currentTrack || sortedTracks[0] || null;
 
+  const queue = useMemo(() => {
+    return sortedTracks.filter(
+      (track) => String(track.id) !== String(currentTrack?.id)
+    );
+  }, [sortedTracks, currentTrack?.id]);
+
+  const nextWinningTrack = queue[0] || null;
+  
   const { play, pause, isPlaying, position, duration, seekTo } = useAudioPlayer(
     currentTrack?.audioUrl,
     {}
