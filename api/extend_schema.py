@@ -13,7 +13,7 @@ from drf_spectacular.utils import (
     OpenApiResponse, OpenApiExample,
 )
 from .serializers import (
-    LoginSerializer, SpotifyTrackSearchResultSerializer, TokenResponseSerializer,
+    LoginSerializer, DeezerTrackSearchResultSerializer, TokenResponseSerializer,
     RegisterSerializer, UpdateProfileSerializer,
     ChangePasswordSerializer, ForgotPasswordSerializer,
     ResetPasswordSerializer, LogoutSerializer,
@@ -256,7 +256,7 @@ social_login_schema = extend_schema(
     ],
 )
 
-# spotify track search ───────────────────────────────────────────────────────────────────────
+# deezer track search ───────────────────────────────────────────────────────────────────────
 from drf_spectacular.utils import (
     extend_schema,
     OpenApiParameter,
@@ -266,12 +266,12 @@ from drf_spectacular.utils import (
 from drf_spectacular.types import OpenApiTypes
 
 
-spotify_track_search_schema = extend_schema(
-    tags=["Spotify"],
-        operation_id="spotify_tracks_search",
-        summary="Search Spotify tracks",
+deezer_track_search_schema = extend_schema(
+    tags=["Deezer"],
+        operation_id="deezer_tracks_search",
+        summary="Search Deezer tracks",
         description=(
-            "Search tracks from Spotify and return normalized metadata for the mobile app. "
+            "Search tracks from Deezer and return normalized metadata for the mobile app. "
             "This endpoint is used by the Suggestions tab before adding a track to a vote room queue."
         ),
         parameters=[
@@ -284,9 +284,9 @@ spotify_track_search_schema = extend_schema(
             ),
         ],
         responses={
-            200: SpotifyTrackSearchResultSerializer(many=True),
+            200: DeezerTrackSearchResultSerializer(many=True),
             400: OpenApiResponse(description="Query must be at least 2 characters."),
             401: OpenApiResponse(description="Authentication credentials were not provided or are invalid."),
-            502: OpenApiResponse(description="Spotify search failed."),
+            502: OpenApiResponse(description="Deezer search failed."),
         },
     )

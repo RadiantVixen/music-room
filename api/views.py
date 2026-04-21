@@ -1,4 +1,4 @@
-from .spotify_service import search_spotify_tracks
+from .deezer_service import search_deezer_tracks
 from .permissions import IsChatService
 from rest_framework import permissions, status, generics
 from rest_framework.response import Response
@@ -11,8 +11,8 @@ from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
     LogoutSerializer, TokenRefreshSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
-    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer, SpotifyTrackSearchQuerySerializer,
-    SpotifyTrackSearchResultSerializer,
+    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer, DeezerTrackSearchQuerySerializer,
+    DeezerTrackSearchResultSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -32,7 +32,7 @@ from .extend_schema import (
     login_schema, logout_schema, register_schema, profile_schema,
     change_password_schema, forgot_password_schema,
     deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema, 
-    spotify_track_search_schema,
+    deezer_track_search_schema,
 )
 from drf_spectacular.openapi import OpenApiParameter, OpenApiResponse
 from .logging_utils import log_action
@@ -538,8 +538,8 @@ class UserAdminDetailView(APIView):
         )
 
 
-@spotify_track_search_schema
-class SpotifyTrackSearchView(APIView):
+@deezer_track_search_schema
+class DeezerTrackSearchView(APIView):
     def get(self, request):
         query = request.query_params.get("q", "").strip()
 
@@ -550,10 +550,10 @@ class SpotifyTrackSearchView(APIView):
             )
 
         try:
-            tracks = search_spotify_tracks(query=query, limit=10)
+            tracks = search_deezer_tracks(query=query, limit=10)
             return Response(tracks, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {"detail": "Spotify search failed.", "error": str(e)},
+                {"detail": "Deezer search failed.", "error": str(e)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )

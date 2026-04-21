@@ -37,7 +37,7 @@ class Profile(models.Model):
     
     # Standard image upload for local avatars
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    # Added for easy frontend mock data & external Spotify/Google avatars
+    # Added for easy frontend mock data & external provider avatars
     avatar_url = models.URLField(blank=True, null=True, default='https://i.pravatar.cc/100')
     
     created_at = models.DateTimeField(auto_now_add=True)

@@ -569,26 +569,26 @@ class RoomMembershipActionSerializer(serializers.Serializer):
 
 
 
-class SpotifyTrackSearchQuerySerializer(serializers.Serializer):
+class DeezerTrackSearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(
         min_length=2,
         help_text="Track or artist search query (minimum 2 characters).",
     )
 
 
-class SpotifyTrackSearchResultSerializer(serializers.Serializer):
-    spotifyId = serializers.CharField(help_text="Spotify track ID")
+class DeezerTrackSearchResultSerializer(serializers.Serializer):
+    deezerId = serializers.CharField(help_text="Deezer track ID")
     title = serializers.CharField(help_text="Track title")
     artist = serializers.CharField(help_text="Artist name(s), comma separated")
     album = serializers.CharField(help_text="Album name", allow_blank=True)
     albumArt = serializers.URLField(help_text="Album cover image URL", allow_blank=True)
     duration = serializers.IntegerField(help_text="Duration in seconds")
     audioUrl = serializers.URLField(
-        help_text="Spotify preview URL (30s) when available",
+        help_text="Deezer preview URL (30s)",
         allow_blank=True,
     )
-    spotifyUrl = serializers.URLField(
-        help_text="Spotify public track URL",
+    deezerUrl = serializers.URLField(
+        help_text="Deezer public track URL",
         allow_blank=True,
     )
 
