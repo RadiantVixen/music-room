@@ -1,12 +1,18 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
+import { GENRE_IMAGES, getRoomImageFromGenre } from "../../../utils/placeholders";
 export default function FeaturedRoomCard({ room, onPress }: any) {
+
+  const getAvatar = (id?: number) =>
+  `https://i.pravatar.cc/150?u=${id || "default"}`;
+
+  
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
       {/* Background image */}
-      <Image source={{ uri: room.coverImage }} style={styles.image} />
+      <Image source={{ uri: room.coverImage || getRoomImageFromGenre(room.genres) }} style={styles.image} />
 
       {/* Gradient overlay */}
       <View style={styles.gradient} />
@@ -22,11 +28,11 @@ export default function FeaturedRoomCard({ room, onPress }: any) {
       {/* Host */}
       <View style={styles.host}>
         <View style={styles.hostRow}>
-          <Image source={{ uri: room.host.avatar }} style={styles.hostAvatar} />
+          <Image source={{ uri: room.host.avatar || getAvatar(room.host.id) }} style={styles.hostAvatar} />
 
           <View>
             <Text style={styles.roomTitle}>{room.name}</Text>
-            <Text style={styles.hostText}>Hosted by {room.host}</Text>
+            <Text style={styles.hostText}>Hosted by {room.host?.displayName || room.host?.username || "Unknown host"}</Text>
           </View>
         </View>
       </View>

@@ -1,25 +1,34 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  Alert,
+} from "react-native";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRoomsStore } from "../../../store/roomsStore";
+import { getRoomImageFromGenre } from "../../../utils/placeholders";
 
 export default function CreateRoomScreen() {
   const navigation = useAppNavigation();
+  const { createRoom, isLoading } = useRoomsStore();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
-
-  const handleCreate = () => {
-    // call backend later
-    navigation.navigate("CreateRoom");
-  };
-  const [votingPermission, setVotingPermission] = useState<
-    "everyone" | "invited" | "location"
-  >("everyone");
-
+  const [licenseType, setLicenseType] = useState<
+    "default" | "invited" | "location"
+  >("default");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [allowSuggestions, setAllowSuggestions] = useState(true);
+  const [roomType, setRoomType] = useState<"vote" | "delegation">("vote");
+
   const musicGenres = [
     "Pop",
     "Hip-Hop",
@@ -50,12 +59,35 @@ export default function CreateRoomScreen() {
     );
   };
 
-  const [allowSuggestions, setAllowSuggestions] = useState(true);
+  const handleCreate = async () => {
+    try {
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || "No description provided",
+        room_type: roomType,
+        coverImage: getRoomImageFromGenre(selectedGenres),
+        genres: selectedGenres,
+        visibility ,
+        ...(roomType === "vote" && { license_type: licenseType }),
+      };
+
+      const room = await createRoom(payload);
+
+      Alert.alert("Success", "Room created successfully");
+      navigation.replace("Room", { roomId: room.id.toString() });
+    } catch (error: any) {
+      console.log("Create room error:", error?.response?.data || error?.message || error);
+      Alert.alert(
+        "Error",
+        error?.response?.data?.detail ||
+          "Failed to create room"
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -66,12 +98,10 @@ export default function CreateRoomScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        {/* Cover */}
         <TouchableOpacity style={styles.cover}>
           <Ionicons name="camera-outline" size={28} color="#aaa" />
         </TouchableOpacity>
 
-        {/* Room name */}
         <Text style={styles.label}>Room Name</Text>
         <TextInput
           style={styles.input}
@@ -81,7 +111,6 @@ export default function CreateRoomScreen() {
           onChangeText={setName}
         />
 
-        {/* Description */}
         <Text style={styles.label}>Description</Text>
         <TextInput
           style={styles.input}
@@ -90,79 +119,108 @@ export default function CreateRoomScreen() {
           value={description}
           onChangeText={setDescription}
         />
-
-        {/* Visibility */}
         <Text style={styles.label}>Visibility</Text>
+
+          <View style={styles.visibilityRow}>
+            <TouchableOpacity
+              style={[
+                styles.visibilityCard,
+                visibility === "public" && styles.activeCard,
+              ]}
+              onPress={() => setVisibility("public")}
+            >
+              <Ionicons name="globe-outline" size={22} color="#fff" />
+              <Text style={styles.cardText}>Public</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.visibilityCard,
+                visibility === "private" && styles.activeCard,
+              ]}
+              onPress={() => setVisibility("private")}
+            >
+              <Ionicons name="lock-closed-outline" size={22} color="#fff" />
+              <Text style={styles.cardText}>Private</Text>
+            </TouchableOpacity>
+          </View>
+        
+        <Text style={styles.sectionTitle}>Room Type</Text>
 
         <View style={styles.visibilityRow}>
           <TouchableOpacity
             style={[
               styles.visibilityCard,
-              visibility === "public" && styles.activeCard,
+              roomType === "vote" && styles.activeCard,
             ]}
-            onPress={() => setVisibility("public")}
+            onPress={() => setRoomType("vote")}
           >
-            <Ionicons name="globe-outline" size={22} color="#fff" />
-            <Text style={styles.cardText}>Public</Text>
+            <Ionicons name="musical-notes-outline" size={22} color="#fff" />
+            <Text style={styles.cardText}>Vote Room</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.visibilityCard,
-              visibility === "private" && styles.activeCard,
+              roomType === "delegation" && styles.activeCard,
             ]}
-            onPress={() => setVisibility("private")}
+            onPress={() => setRoomType("delegation")}
           >
-            <Ionicons name="lock-closed-outline" size={22} color="#fff" />
-            <Text style={styles.cardText}>Private</Text>
+            <Ionicons name="phone-portrait-outline" size={22} color="#fff" />
+            <Text style={styles.cardText}>Delegation Room</Text>
           </TouchableOpacity>
         </View>
 
+        {roomType === "vote" && (
+          <>  
+          <Text style={styles.sectionTitle}>Who can vote?</Text>
+
+        {[
+          {
+            id: "default",
+            label: "Everyone",
+            description: "Anyone can vote for tracks",
+            icon: "globe-outline",
+          },
+          {
+            id: "invited",
+            label: "Invited Only",
+            description: "Only invited users can vote",
+            icon: "people-outline",
+          },
+          {
+            id: "location",
+            label: "Location Based",
+            description: "Users at the event location",
+            icon: "location-outline",
+          },
+        ].map((option) => (
+          <TouchableOpacity
+            key={option.id}
+            style={[
+              styles.voteCard,
+              licenseType === option.id && styles.voteCardActive,
+            ]}
+            onPress={() => setLicenseType(option.id as any)}
+          >
+            <View style={styles.voteIcon}>
+              <Ionicons name={option.icon as any} size={22} color="#fff" />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={styles.voteTitle}>{option.label}</Text>
+              <Text style={styles.voteDesc}>{option.description}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+          </>
+        )}
+
         
 
-        <Text style={styles.sectionTitle}>Who can vote?</Text>
+        
 
-          {[
-            {
-              id: "everyone",
-              label: "Everyone",
-              description: "Anyone can vote for tracks",
-              icon: "globe-outline",
-            },
-            {
-              id: "invited",
-              label: "Invited Only",
-              description: "Only invited users can vote",
-              icon: "people-outline",
-            },
-            {
-              id: "location",
-              label: "Location Based",
-              description: "Users at the event location",
-              icon: "location-outline",
-            },
-          ].map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={[
-                styles.voteCard,
-                votingPermission === option.id && styles.voteCardActive,
-              ]}
-              onPress={() => setVotingPermission(option.id as any)}
-            >
-              <View style={styles.voteIcon}>
-                <Ionicons name={option.icon as any} size={22} color="#fff" />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.voteTitle}>{option.label}</Text>
-                <Text style={styles.voteDesc}>{option.description}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        <Text style={styles.sectionTitle}>
-          Music Genre (select up to 3)
-        </Text>
+        <Text style={styles.sectionTitle}>Music Genre (select up to 3)</Text>
 
         <View style={styles.genreContainer}>
           {musicGenres.map((genre) => {
@@ -189,6 +247,8 @@ export default function CreateRoomScreen() {
             );
           })}
         </View>
+        {roomType === "vote" && (
+
 
         <View style={styles.settingCard}>
           <View style={{ flex: 1 }}>
@@ -204,15 +264,18 @@ export default function CreateRoomScreen() {
             trackColor={{ true: "#22c55e" }}
           />
         </View>
+        )}
+
         <TouchableOpacity
-          style={[styles.createBtn, !name && { opacity: 0.5 }]}
-          disabled={!name}
-          onPress={handleCreate}>
-            <Text style={styles.createText}>Create Room</Text>
+          style={[styles.createBtn, (!name || isLoading) && { opacity: 0.5 }]}
+          disabled={!name || isLoading}
+          onPress={handleCreate}
+        >
+          <Text style={styles.createText}>
+            {isLoading ? "Creating..." : "Create Room"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
-      {/* Create Button */}
-       
     </SafeAreaView>
   );
 }

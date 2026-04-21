@@ -1,5 +1,5 @@
-import { View, TouchableOpacity, StyleSheet } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function PlayerControls({
   isPlaying,
@@ -8,18 +8,10 @@ export default function PlayerControls({
 }: any) {
   return (
     <View style={styles.container}>
-
-      {/* Dislike */}
-      <TouchableOpacity>
-        <Ionicons name="thumbs-down-outline" size={22} color="#aaa" />
+      <TouchableOpacity style={styles.sideButton}>
+        <Ionicons name="play-skip-back" size={24} color="#fff" />
       </TouchableOpacity>
 
-      {/* Previous */}
-      <TouchableOpacity>
-        <Ionicons name="play-skip-back" size={26} color="#fff" />
-      </TouchableOpacity>
-
-      {/* PLAY / PAUSE */}
       <TouchableOpacity
         style={styles.play}
         onPress={isPlaying ? onPause : onPlay}
@@ -31,26 +23,28 @@ export default function PlayerControls({
         />
       </TouchableOpacity>
 
-      {/* Next */}
-      <TouchableOpacity>
-        <Ionicons name="play-skip-forward" size={26} color="#fff" />
+      <TouchableOpacity style={styles.sideButton}>
+        <Ionicons name="play-skip-forward" size={24} color="#fff" />
       </TouchableOpacity>
-
-      {/* Like */}
-      <TouchableOpacity>
-        <Ionicons name="thumbs-up" size={22} color="#9956F5" />
-      </TouchableOpacity>
-
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     marginTop: 30,
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "center",
     alignItems: "center",
+    gap: 28,
+  },
+  sideButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#1B1328",
+    alignItems: "center",
+    justifyContent: "center",
   },
   play: {
     width: 64,
@@ -60,4 +54,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-})
+});

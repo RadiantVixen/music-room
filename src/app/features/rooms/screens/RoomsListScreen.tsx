@@ -1,43 +1,49 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, FlatList, StyleSheet } from "react-native";
+import { useEffect } from "react";
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
-import { liveRooms } from "../../home/data/mockRooms";
-import { SafeAreaView } from "react-native-safe-area-context";
 import FeaturedRoomCard from "../../home/components/FeaturedRoomCard";
-import App from "../../../../../App";
 import AppLayout from "../../../components/layout/AppLayout";
 import RoomsListHeader from "../components/RoomsListHeader";
+import { useRoomsStore } from "../../../store/roomsStore";
 
 export default function JoinRoomScreen() {
   const navigation = useAppNavigation();
+  const { rooms, fetchRooms, isLoading } = useRoomsStore();
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
 
   const handleJoin = (room: any) => {
-    navigation.navigate("Room", { roomId: room.id })
+    navigation.navigate("Room", { roomId: room.id });
   };
 
   return (
     <AppLayout header={<RoomsListHeader />}>
-
       <View style={styles.container}>
-        {/* Rooms list */}
-        <FlatList
-          data={liveRooms}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <FeaturedRoomCard
-              room={item}
-              onPress={() => handleJoin(item)}
-            />
-          )}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
-        />
-
+        {isLoading ? (
+          <Text style={styles.empty}>Loading rooms...</Text>
+        ) : rooms.length === 0 ? (
+          <Text style={styles.empty}>No rooms available</Text>
+        ) : (
+          <FlatList
+            data={rooms}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <FeaturedRoomCard
+                room={item}
+                onPress={() => handleJoin(item)}
+              />
+            )}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          />
+        )}
       </View>
-
     </AppLayout>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -45,42 +51,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 10,
-    marginBottom: 20,
-  },
-
-  title: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-
-  roomCard: {
-    backgroundColor: "#1B1328",
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  roomInfo: {
-    gap: 4,
-  },
-
-  roomName: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  roomMeta: {
+  empty: {
     color: "#888",
-    fontSize: 13,
+    textAlign: "center",
+    marginTop: 40,
   },
 });
