@@ -81,6 +81,7 @@ urlpatterns = [
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
 
     path('tracks/search/', SpotifyTrackSearchView.as_view(), name='spotify-track-search'),
+    
 
 
     # ── Admin: action logs ────────────────────────────────────────────────────

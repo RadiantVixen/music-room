@@ -43,6 +43,7 @@ from django.utils import timezone
 from .models import CustomUser, Profile, PasswordResetCode
 from .serializers import VerifyResetCodeSerializer
 from api import extend_schema
+
 User = get_user_model()
 
 def generate_reset_code():
