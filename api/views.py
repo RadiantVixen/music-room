@@ -500,13 +500,17 @@ class UserListView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
-        users = CustomUser.objects.select_related('profile').all().order_by('id')
+        users = (
+            CustomUser.objects
+            .select_related('profile')
+            .exclude(id=request.user.id)
+            .order_by('id')
+        )
         data = UserSerializer(users, many=True, context={'request': request}).data
         return Response({'count': len(data), 'data': data}, status=status.HTTP_200_OK)
 
-
 class UserAdminDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsStaffRoleUser]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 

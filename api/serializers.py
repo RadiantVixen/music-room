@@ -238,6 +238,8 @@ class UserSerializer(serializers.ModelSerializer):
     music_preferences = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
 
+    relationship = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
         fields = [
@@ -250,9 +252,52 @@ class UserSerializer(serializers.ModelSerializer):
             'profile',
             'music_preferences',
             'stats',
+            'relationship',
         ]
-        read_only_fields = ['id', 'role', 'music_preferences', 'stats']
+        read_only_fields = ['id', 'role', 'music_preferences', 'stats', 'relationship']
+    def get_relationship(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return {'status': 'none'}
 
+        current_user = request.user
+
+        if current_user.id == obj.id:
+            return {'status': 'self'}
+
+        friendship = FriendRequest.objects.filter(
+            Q(sender=current_user, receiver=obj) |
+            Q(sender=obj, receiver=current_user)
+        ).order_by('-created_at').first()
+
+        if not friendship:
+            return {'status': 'none'}
+
+        if friendship.status == 'accepted':
+            return {
+                'status': 'friends',
+                'request_id': friendship.id,
+            }
+
+        if friendship.status == 'blocked':
+            return {
+                'status': 'blocked',
+                'request_id': friendship.id,
+            }
+
+        if friendship.status == 'pending':
+            if friendship.sender_id == current_user.id:
+                return {
+                    'status': 'request_sent',
+                    'request_id': friendship.id,
+                }
+            else:
+                return {
+                    'status': 'request_received',
+                    'request_id': friendship.id,
+                }
+        return {'status': 'none'}
+    
     def get_music_preferences(self, obj):
         try:
             prefs = obj.profile.music_preferences
