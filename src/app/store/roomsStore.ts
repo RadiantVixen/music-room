@@ -18,6 +18,11 @@ import {
   revokeDeviceControlRequest,
   getDelegationDeviceStatusRequest,
   sendDelegationControlActionRequest,
+  skipRoomPlaybackRequest,
+  resumeRoomPlaybackRequest,
+  pauseRoomPlaybackRequest,
+  getRoomPlaybackStateRequest,
+  playRoomPlaybackRequest,
 } from "../api/rooms";
 
 type Track = {
@@ -72,6 +77,21 @@ type DelegationDevice = {
   updated_at: string;
 };
 
+type PlaybackState = {
+  room_id: number;
+  status: "playing" | "paused" | "stopped";
+  position_ms: number;
+  started_at?: string | null;
+  current_track?: {
+    id: string;
+    title: string;
+    artist: string;
+    albumArt?: string;
+    audioUrl?: string;
+    duration?: number;
+  } | null;
+};
+
 type RoomsState = {
   rooms: Room[];
   myRooms: Room[];
@@ -94,6 +114,21 @@ type RoomsState = {
   fetchInvitations: () => Promise<void>;
 
   fetchRoomTracks: (roomId: number | string) => Promise<void>;
+
+  playbackState: PlaybackState | null;
+  playbackLoading: boolean;
+
+  fetchPlaybackState: (roomId: number | string) => Promise<void>;
+  setPlaybackStateFromSocket: (payload: PlaybackState) => void;
+  playPlayback: (roomId: number | string) => Promise<void>;
+  pausePlayback: (roomId: number | string) => Promise<void>;
+  resumePlayback: (roomId: number | string) => Promise<void>;
+  skipPlayback: (roomId: number | string) => Promise<void>;
+
+  setRoomTracksFromSocket: (tracks: Track[]) => void;
+  setDelegationDevicesFromSocket: (devices: DelegationDevice[]) => void;
+  upsertDelegationDeviceFromSocket: (device: DelegationDevice) => void;
+
   voteTrack: (
     roomId: number | string,
     trackId: number | string,
@@ -382,6 +417,64 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
     return response;
   },
 
+  setRoomTracksFromSocket: (tracks) => set({ roomTracks: tracks }),
+
+  setDelegationDevicesFromSocket: (devices) =>
+    set({ delegationDevices: devices }),
+
+  upsertDelegationDeviceFromSocket: (device) =>
+    set({
+      delegationDevices: (() => {
+        const current = get().delegationDevices;
+        const exists = current.some(
+          (item) => String(item.id) === String(device.id)
+        );
+
+        if (!exists) return [device, ...current];
+
+        return current.map((item) =>
+          String(item.id) === String(device.id) ? device : item
+        );
+      })(),
+    }),
+
+
+      playbackState: null,
+  playbackLoading: false,
+
+  fetchPlaybackState: async (roomId) => {
+    set({ playbackLoading: true });
+    try {
+      const data = await getRoomPlaybackStateRequest(roomId);
+      set({ playbackState: data });
+    } finally {
+      set({ playbackLoading: false });
+    }
+  },
+
+  setPlaybackStateFromSocket: (payload) => {
+    set({ playbackState: payload });
+  },
+
+  playPlayback: async (roomId) => {
+    const data = await playRoomPlaybackRequest(roomId);
+    set({ playbackState: data });
+  },
+
+  pausePlayback: async (roomId) => {
+    const data = await pauseRoomPlaybackRequest(roomId);
+    set({ playbackState: data });
+  },
+
+  resumePlayback: async (roomId) => {
+    const data = await resumeRoomPlaybackRequest(roomId);
+    set({ playbackState: data });
+  },
+
+  skipPlayback: async (roomId) => {
+    const data = await skipRoomPlaybackRequest(roomId);
+    set({ playbackState: data });
+  },
   clearDelegationDevices: () => set({ delegationDevices: [] }),
 
 

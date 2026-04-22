@@ -1,5 +1,5 @@
-import { ScrollView, View, StyleSheet } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NowPlayingCard from "../components/NowPlayingCard";
 import PlayerControls from "../components/PlayerControls";
 import PlayerProgress from "../components/PlayerProgress";
@@ -10,6 +10,8 @@ import ControllersTab from "../components/ControllersTab";
 import { useAudioPlayer } from "../../../utils/useAudioPlayer";
 import { useRoomsStore } from "../../../store/roomsStore";
 import { useAuthStore } from "../../../store/authStore";
+import { useDelegationRoomSocket } from "../../../services/useDelegationRoomSocket";
+import { useRoomPlaybackSocket } from "../../../services/useRoomPlaybackSocket";
 
 type DelegationTab = "queue" | "add_tracks" | "controllers";
 
@@ -25,21 +27,32 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
     delegationDevices,
     delegationLoading,
     fetchDelegationDevices,
+    playbackState,
+    fetchPlaybackState,
+    playPlayback,
+    pausePlayback,
+    resumePlayback,
+    skipPlayback,
   } = useRoomsStore();
+
+  useDelegationRoomSocket(room?.id);
+  useRoomPlaybackSocket(room?.id);
 
   useEffect(() => {
     if (room?.id) {
       fetchRoomTracks(room.id);
       fetchDelegationDevices(room.id);
+      fetchPlaybackState(room.id);
     }
-  }, [room?.id]);
+  }, [
+    room?.id,
+    fetchRoomTracks,
+    fetchDelegationDevices,
+    fetchPlaybackState,
+  ]);
 
-  const [currentTrack, setCurrentTrack] = useState<any>(room?.currentTrack || null);
-  useEffect(() => {
-    if (!currentTrack && roomTracks.length > 0) {
-      setCurrentTrack(room?.currentTrack || roomTracks[0]);
-    }
-  }, [roomTracks, room?.currentTrack, currentTrack]);
+  const currentTrack = playbackState?.current_track || null;
+  const backendIsPlaying = playbackState?.status === "playing";
 
   const queue = useMemo(() => {
     return roomTracks.filter(
@@ -47,17 +60,16 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
     );
   }, [roomTracks, currentTrack?.id]);
 
-  const handleSelectTrack = (track: any) => {
-    setCurrentTrack(track);
-  };
-
   const roomControlEntry = useMemo(() => {
     if (!delegationDevices?.length) return null;
 
-    return delegationDevices.find(
-      (device) =>
-        String(device.owner_id) === String(room?.owner?.id || room?.host?.id || user?.id)
-    ) || delegationDevices[0];
+    return (
+      delegationDevices.find(
+        (device) =>
+          String(device.owner_id) ===
+          String(room?.owner?.id || room?.host?.id || user?.id)
+      ) || delegationDevices[0]
+    );
   }, [delegationDevices, room?.owner?.id, room?.host?.id, user?.id]);
 
   const isOwner = useMemo(() => {
@@ -77,17 +89,60 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
   const {
     play,
     pause,
-    isPlaying,
+    isPlaying: localIsPlaying,
     position,
     duration,
     seekTo,
-  } = useAudioPlayer(currentTrack?.audioUrl, {});
+  } = useAudioPlayer(currentTrack?.audioUrl);
+
+  const syncedTrackIdRef = useRef<string | null>(null);
+  const syncedStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (currentTrack?.audioUrl) {
-      play();
+    const trackId = currentTrack?.id ? String(currentTrack.id) : null;
+    const status = playbackState?.status || null;
+
+    const trackChanged = syncedTrackIdRef.current !== trackId;
+    const statusChanged = syncedStatusRef.current !== status;
+
+    if (!currentTrack?.audioUrl) {
+      syncedTrackIdRef.current = trackId;
+      syncedStatusRef.current = status;
+      return;
     }
-  }, [currentTrack?.audioUrl]);
+
+    if (trackChanged || statusChanged) {
+      if (backendIsPlaying) {
+        play();
+      } else {
+        pause();
+      }
+
+      syncedTrackIdRef.current = trackId;
+      syncedStatusRef.current = status;
+    }
+  }, [currentTrack?.id, currentTrack?.audioUrl, backendIsPlaying, playbackState?.status, play, pause]);
+
+  const handlePlay = useCallback(async () => {
+    if (!room?.id || !canControl) return;
+
+    if (playbackState?.status === "paused") {
+      await resumePlayback(room.id);
+      return;
+    }
+
+    await playPlayback(room.id);
+  }, [room?.id, canControl, playbackState?.status, playPlayback, resumePlayback]);
+
+  const handlePause = useCallback(async () => {
+    if (!room?.id || !canControl) return;
+    await pausePlayback(room.id);
+  }, [room?.id, canControl, pausePlayback]);
+
+  const handleSkip = useCallback(async () => {
+    if (!room?.id || !canControl) return;
+    await skipPlayback(room.id);
+  }, [room?.id, canControl, skipPlayback]);
 
   const tabs = canControl
     ? [
@@ -111,9 +166,10 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
       />
 
       <PlayerControls
-        isPlaying={isPlaying}
-        onPlay={canControl ? play : undefined}
-        onPause={canControl ? pause : undefined}
+        isPlaying={backendIsPlaying || localIsPlaying}
+        onPlay={canControl ? handlePlay : undefined}
+        onPause={canControl ? handlePause : undefined}
+        onNext={canControl ? handleSkip : undefined}
       />
 
       <RoomTabs
@@ -122,13 +178,13 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
         onChange={(tab) => setActiveTab(tab as DelegationTab)}
       />
 
-      { activeTab === "queue" && (
+      {activeTab === "queue" && (
         <DelegationQueueList
           roomId={room?.id}
           queue={queue}
           isLoading={tracksLoading}
           canControl={canControl}
-          onSelectTrack={handleSelectTrack}
+          onSelectTrack={() => {}}
         />
       )}
 

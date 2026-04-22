@@ -178,3 +178,27 @@ export const sendDelegationControlActionRequest = async (
   );
   return data;
 };
+export const getRoomPlaybackStateRequest = async (roomId: number | string) => {
+  const { data } = await api.get(`/rooms/${roomId}/playback/`);
+  return data;
+};
+
+export const playRoomPlaybackRequest = async (roomId: number | string) => {
+  const { data } = await api.post(`/rooms/${roomId}/playback/play/`);
+  return data;
+};
+
+export const pauseRoomPlaybackRequest = async (roomId: number | string) => {
+  const { data } = await api.post(`/rooms/${roomId}/playback/pause/`);
+  return data;
+};
+
+export const resumeRoomPlaybackRequest = async (roomId: number | string) => {
+  const { data } = await api.post(`/rooms/${roomId}/playback/resume/`);
+  return data;
+};
+
+export const skipRoomPlaybackRequest = async (roomId: number | string) => {
+  const { data } = await api.post(`/rooms/${roomId}/playback/skip/`);
+  return data;
+};
