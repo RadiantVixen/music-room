@@ -23,17 +23,18 @@ services:
       - auth-postgres
       - redis
     build:
-      context: ./backend
+      context: .
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - .:/app
     networks:
       - transcendence
     env_file:
       - .env
     command: python manage.py runserver 0.0.0.0:8000
+
 
 networks:
   transcendence:
