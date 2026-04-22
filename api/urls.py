@@ -1,3 +1,4 @@
+from api.views_playback import RoomPlaybackPauseView, RoomPlaybackPlayView, RoomPlaybackResumeView, RoomPlaybackSkipView, RoomPlaybackStateView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -78,6 +79,14 @@ urlpatterns = [
     path('rooms/<int:pk>/invitation/', RoomInvitationResponseView.as_view(), name='room-invitation-response'),
     path('rooms/<int:pk>/members/<int:user_id>/', KickMemberView.as_view(), name='room-kick'),
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
+
+    # ── Playback ─────────────────────────────────────────────────────────────
+    path('rooms/<int:room_id>/playback/playback/', RoomPlaybackStateView.as_view(), name='playback-state'),
+    path('rooms/<int:room_id>/playback/play/', RoomPlaybackPlayView.as_view(), name='playback-play'),
+    path('rooms/<int:room_id>/playback/pause/', RoomPlaybackPauseView.as_view(), name='playback-pause'),
+    path('rooms/<int:room_id>/playback/resume/', RoomPlaybackResumeView.as_view(), name='playback-resume'),
+    path('rooms/<int:room_id>/playback/skip/', RoomPlaybackSkipView.as_view(), name='playback-skip'),
+    
 
     path('tracks/search/', DeezerTrackSearchView.as_view(), name='deezer-track-search'),
 

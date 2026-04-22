@@ -12,6 +12,7 @@ from django.db import transaction, IntegrityError
 from django.db.models import F, Window, Exists, OuterRef
 from django.db.models.functions import RowNumber
 from django.shortcuts import get_object_or_404
+from api.playback import get_or_create_playback_state
 from rest_framework import serializers, status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -40,7 +41,13 @@ from .serializers import TrackSerializer, TrackCreateSerializer, VoteResponseSer
 #     return room, None
 
 def _get_vote_room(room_id):
-    return get_object_or_404(Room, pk=room_id), None
+    room = get_object_or_404(Room, pk=room_id)
+    if room.room_type != 'vote':
+        return None, Response(
+            {'detail': 'This room is not a vote-type room.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return room, None
 
 def _broadcast(room_id, event_type, extra=None):
     """
@@ -112,13 +119,10 @@ class TrackListCreateView(generics.GenericAPIView):
         responses={201: TrackSerializer},
     )
     def post(self, request, room_id):
-        # ── VALIDATION GATE ──────────────────────────────────────────────
-        # 1. Room type check
         room, err = _get_vote_room(room_id)
         if err:
             return err
 
-        # 2. License / geo-fence check (BEFORE any mutation)
         user_lat = request.data.get('lat')
         user_lon = request.data.get('lon')
         allowed, reason = check_license(
@@ -129,15 +133,13 @@ class TrackListCreateView(generics.GenericAPIView):
         if not allowed:
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
-        # 3. Input validation & normalization
         serializer = TrackCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # ── MUTATION ─────────────────────────────────────────────────────
         try:
             track = Track.objects.create(
                 room=room,
-                deezer_id=serializer.validated_data['deezerId'], # <-- Changed here
+                deezer_id=serializer.validated_data['deezerId'],
                 title=serializer.validated_data['title'],
                 artist=serializer.validated_data['artist'],
                 album=serializer.validated_data.get('album', ''),
@@ -146,6 +148,23 @@ class TrackListCreateView(generics.GenericAPIView):
                 audio_url=serializer.validated_data.get('audioUrl', ''),
                 suggested_by=request.user,
             )
+
+            # ── ADD THIS BLOCK ──────────────────────────────────────────
+            from api.playback import get_or_create_playback_state, start_room_playback
+            from api.playback_broadcast import (
+                serialize_playback_state,
+                broadcast_playback_state,
+            )
+
+            state = get_or_create_playback_state(room)
+
+            # start playback automatically if nothing is currently playing
+            if not state.current_track and track.audio_url:
+                state = start_room_playback(room)
+                playback_payload = serialize_playback_state(state)
+                broadcast_playback_state(room.id, playback_payload)
+            # ────────────────────────────────────────────────────────────
+
         except IntegrityError:
             return Response(
                 {'detail': 'This track already exists in this room.'},
@@ -154,14 +173,12 @@ class TrackListCreateView(generics.GenericAPIView):
 
         log_action(request, 'track_suggested', f'Track id={track.id} in room {room_id}')
 
-        # Broadcast new track to all connected clients
         _broadcast(room_id, 'track.added')
 
         return Response(
             TrackSerializer(track, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
-
 
 class TrackVoteView(APIView):
     """

@@ -17,7 +17,7 @@ django.setup()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
-
+import api.routing_playback
 from api.ws_auth import JWTAuthMiddleware
 
 import events.routing
@@ -29,6 +29,7 @@ application = ProtocolTypeRouter({
         URLRouter(
             events.routing.websocket_urlpatterns
             + delegation.routing.websocket_urlpatterns
+            + api.routing_playback.websocket_urlpatterns
         )
     ),
 })

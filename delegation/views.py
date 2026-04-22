@@ -37,6 +37,8 @@ from .serializers import (
     ControlActionSerializer,
     ControlActionResponseSerializer,
 )
+from api.playback import start_room_playback, pause_room_playback, resume_room_playback, skip_room_track
+from api.playback_broadcast import broadcast_playback_state, serialize_playback_state
 
 
 def _get_delegation_room(room_id):
@@ -317,14 +319,14 @@ class ControlActionView(APIView):
         action_id = serializer.validated_data['action_id']
         action_type = serializer.validated_data['action_type']
 
+        playback_payload = None
+
         try:
             with transaction.atomic():
-                # Lock device row — serialises concurrent actions on same device
                 device = DeviceDelegation.objects.select_for_update().get(
                     pk=device_id, room=room,
                 )
 
-                # ── Permission check ──────────────────────────────────────
                 is_owner = (device.owner == request.user)
                 is_delegate = (
                     device.delegated_to == request.user
@@ -336,7 +338,6 @@ class ControlActionView(APIView):
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
-                # ── Idempotency check ─────────────────────────────────────
                 existing = ControlAction.objects.filter(
                     device=device, action_id=action_id,
                 ).select_related('performed_by').first()
@@ -346,7 +347,6 @@ class ControlActionView(APIView):
                         status=status.HTTP_200_OK,
                     )
 
-                # ── Execute action ────────────────────────────────────────
                 action = ControlAction.objects.create(
                     device=device,
                     action_id=action_id,
@@ -354,13 +354,35 @@ class ControlActionView(APIView):
                     performed_by=request.user,
                 )
 
+                # ── ADD THIS BLOCK ──────────────────────────────────────────
+                from api.playback import (
+                    get_or_create_playback_state,
+                    resume_room_playback,
+                    pause_room_playback,
+                    skip_room_track,
+                )
+                from api.playback_broadcast import serialize_playback_state
+
+                if action_type == "play":
+                    state = resume_room_playback(room)
+                elif action_type == "pause":
+                    state = pause_room_playback(room)
+                elif action_type == "skip":
+                    state = skip_room_track(room)
+                elif action_type == "previous":
+                    state = get_or_create_playback_state(room)  # placeholder for now
+                else:
+                    state = get_or_create_playback_state(room)
+
+                playback_payload = serialize_playback_state(state)
+                # ────────────────────────────────────────────────────────────
+
         except DeviceDelegation.DoesNotExist:
             return Response(
                 {'detail': 'Device not found in this room.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
         except IntegrityError:
-            # Safety net: unique_together on (device, action_id) caught a race
             existing = ControlAction.objects.filter(
                 device_id=device_id, action_id=action_id,
             ).select_related('performed_by').first()
@@ -378,10 +400,17 @@ class ControlActionView(APIView):
             request, 'control_action',
             f'{action_type} on device {device_id} in room {room_id}',
         )
+
         _broadcast_delegation(room_id, 'control_action', {
             'action': ControlActionResponseSerializer(action).data,
             'device': DeviceDelegationSerializer(device).data,
         })
+
+        # ADD THIS TOO
+        if playback_payload:
+            from api.playback_broadcast import broadcast_playback_state
+            broadcast_playback_state(room.id, playback_payload)
+
         return Response(
             ControlActionResponseSerializer(action).data,
             status=status.HTTP_201_CREATED,
