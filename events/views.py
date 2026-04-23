@@ -30,8 +30,8 @@ from .serializers import TrackSerializer, TrackCreateSerializer, VoteResponseSer
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 # def _get_vote_room(room_id):
-#     """Fetch a room and verify it is a vote-type room."""
 #     room = get_object_or_404(Room, pk=room_id)
 #     if room.room_type != 'vote':
 #         return None, Response(
@@ -39,14 +39,9 @@ from .serializers import TrackSerializer, TrackCreateSerializer, VoteResponseSer
 #             status=status.HTTP_400_BAD_REQUEST,
 #         )
 #     return room, None
-
 def _get_vote_room(room_id):
     room = get_object_or_404(Room, pk=room_id)
-    if room.room_type != 'vote':
-        return None, Response(
-            {'detail': 'This room is not a vote-type room.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    
     return room, None
 
 def _broadcast(room_id, event_type, extra=None):

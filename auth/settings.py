@@ -228,6 +228,7 @@ CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split('
 CORS_ALLOW_CREDENTIALS = True
 
 
+
 google_client_id = (
     os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     or os.getenv("GOOGLE_CLIENT_ID")
