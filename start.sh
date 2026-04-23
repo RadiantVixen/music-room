@@ -13,7 +13,7 @@ case "$1" in
       make up
     else
       echo "Docker not found; falling back to local virtualenv run"
-      if [ ! -d ".venv" ]; then
+      if [ ! -d ".venv" ]; then 
         python3 -m venv .venv
         . .venv/bin/activate
         pip install --upgrade pip
@@ -56,3 +56,5 @@ case "$1" in
     exit 1
     ;;
 esac
+
+# test
