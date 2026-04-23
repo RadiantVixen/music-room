@@ -86,14 +86,23 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
     );
   }, [roomControlEntry, user?.id]);
 
-  const {
-    play,
-    pause,
-    isPlaying: localIsPlaying,
-    position,
-    duration,
-    seekTo,
-  } = useAudioPlayer(currentTrack?.audioUrl);
+  // const {
+  //   play,
+  //   pause,
+  //   isPlaying: localIsPlaying,
+  //   position,
+  //   duration,
+  //   seekTo,
+  // } = useAudioPlayer(currentTrack?.audioUrl);
+  const { play, pause, isPlaying, position, duration, seekTo, isPlaying: localIsPlaying, } = useAudioPlayer(
+    currentTrack?.audioUrl,
+    {
+      onTrackEnd: async () => {
+        if (!room?.id) return;
+        await skipPlayback(room.id);
+      },
+    }
+  );
 
   const syncedTrackIdRef = useRef<string | null>(null);
   const syncedStatusRef = useRef<string | null>(null);

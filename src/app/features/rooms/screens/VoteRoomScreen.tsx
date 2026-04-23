@@ -55,14 +55,24 @@ export default function VoteRoomScreen({ room }: { room: any }) {
 
   const nextWinningTrack = queue[0] || null;
 
-  const {
-    play,
-    pause,
-    isPlaying: localIsPlaying,
-    position,
-    duration,
-    seekTo,
-  } = useAudioPlayer(currentTrack?.audioUrl);
+  // const {
+  //   play,
+  //   pause,
+  //   isPlaying: localIsPlaying,
+  //   position,
+  //   duration,
+  //   seekTo,
+  // } = useAudioPlayer(currentTrack?.audioUrl);
+
+  const { play, pause, isPlaying: localIsPlaying, position, duration, seekTo } = useAudioPlayer(
+    currentTrack?.audioUrl,
+    {
+      onTrackEnd: async () => {
+        if (!room?.id) return;
+        await skipPlayback(room.id);
+      },
+    }
+  );
 
   const syncedTrackIdRef = useRef<string | null>(null);
   const syncedStatusRef = useRef<string | null>(null);
