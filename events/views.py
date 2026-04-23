@@ -54,7 +54,10 @@ def _broadcast(room_id, event_type, extra=None):
         from asgiref.sync import async_to_sync
         channel_layer = get_channel_layer()
         if channel_layer:
-            tracks_qs = Track.objects.filter(room_id=room_id).select_related('suggested_by')
+            tracks_qs = Track.objects.filter(
+                room_id=room_id,
+                is_played=False,
+            ).select_related('suggested_by')
             tracks_data = TrackSerializer(tracks_qs, many=True).data
             message = {'type': event_type, 'tracks': tracks_data}
             if extra:
@@ -90,7 +93,7 @@ class TrackListCreateView(generics.GenericAPIView):
         if not allowed:
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
-        tracks = Track.objects.filter(room=room).annotate(
+        tracks = Track.objects.filter(room=room, is_played=False).annotate(
             _rank=Window(
                 expression=RowNumber(),
                 order_by=[F('vote_count').desc(), F('created_at').desc(), F('id').desc()]

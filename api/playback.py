@@ -21,7 +21,7 @@ def get_or_create_playback_state(room):
     return state
 
 def get_vote_next_track(room, current_track=None):
-    qs = Track.objects.filter(room=room)
+    qs = Track.objects.filter(room=room, is_played=False)
 
     if current_track:
         qs = qs.exclude(id=current_track.id)
@@ -113,8 +113,11 @@ def skip_room_track(room):
         state = RoomPlaybackState.objects.select_for_update().get(room=room)
         current_track = state.current_track
 
+        if room.room_type == "vote" and current_track:
+            current_track.is_played = True
+            current_track.save(update_fields=["is_played"])
+
         next_track = pick_next_track(room, current_track=current_track)
-        print("Skipping track", current_track, "->", next_track)
 
         state.current_track = next_track
         if next_track:

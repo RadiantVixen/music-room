@@ -394,5 +394,5 @@ class MyInvitationsView(APIView):
         memberships = RoomMembership.objects.filter(
             user=request.user,
             status=RoomMembershipStatus.PENDING,
-        ).select_related('room__owner', 'invited_by')
+        ).select_related('room', 'room__owner', 'invited_by')
         return Response(RoomMembershipSerializer(memberships, many=True).data)
