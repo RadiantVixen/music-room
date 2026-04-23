@@ -1,40 +1,40 @@
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
-export default function RoomHeader({
-  roomName,
-  roomId,
+export default function MusicHeader({
+  title,
+  subtitle,
 }: {
-  roomName: string;
-  roomId?: string | number;
+  title: string;
+  subtitle?: string;
 }) {
   const navigation = useNavigation<any>();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.container}>
+        {/* Back */}
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-down" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
 
+        {/* Center */}
         <View style={styles.center}>
-          <Text style={styles.subtitle}>PLAYING FROM ROOM</Text>
-          <Text style={styles.title}>{roomName}</Text>
+          {!!subtitle && (
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          )}
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
+          </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => {
-            if (!roomId) return;
-            navigation.navigate("RoomSettings", { roomId: String(roomId) });
-          }}
-        >
-          <Ionicons name="settings-outline" size={20} color="#fff" />
-        </TouchableOpacity>
+        {/* Empty right (for symmetry) */}
+        <View style={styles.iconBtn} />
       </View>
     </SafeAreaView>
   );
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -54,11 +54,11 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   center: {
+    flex: 1,
     alignItems: "center",
   },
   subtitle: {
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 21,
     fontWeight: "700",
     marginTop: 2,
   },

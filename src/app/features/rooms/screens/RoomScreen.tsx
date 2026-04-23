@@ -24,12 +24,20 @@ export default function RoomScreen() {
     return () => {
       clearSelectedRoom();
     };
-  }, [roomId]);
+  }, [roomId, fetchRoomDetails, clearSelectedRoom]);
 
   const room = selectedRoom;
 
   return (
-    <AppLayout header={<RoomHeader roomName={room?.name || "Room"} />}>
+    <AppLayout
+      header={
+        <RoomHeader
+          roomName={room?.name || "Room"}
+          roomId={roomId}
+        />
+      }
+      showNavbar={false}
+    >
       <View style={styles.container}>
         {!room || isLoading ? null : room.room_type === "delegation" ? (
           <DelegationRoomScreen room={room} />

@@ -67,8 +67,15 @@ export default function CreateRoomScreen() {
         room_type: roomType,
         coverImage: getRoomImageFromGenre(selectedGenres),
         genres: selectedGenres,
-        visibility ,
-        ...(roomType === "vote" && { license_type: licenseType }),
+        isPublic: visibility === "public",
+        ...(roomType === "vote" && {
+          votingPermission:
+            licenseType === "default"
+              ? "everyone"
+              : licenseType === "invited"
+              ? "invited"
+              : "location",
+        }),
       };
 
       const room = await createRoom(payload);

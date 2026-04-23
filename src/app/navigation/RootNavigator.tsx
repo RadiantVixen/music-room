@@ -18,6 +18,10 @@ import ChangePasswordScreen from "../features/profile/components/ChangePasswordS
 import FriendsListScreen from "../features/friends/screens/FriendsListScreen";
 import FriendProfileScreen from "../features/friends/screens/FriendProfileScreen";
 import AllUsersScreen from "../features/friends/screens/AllUsersScreen";
+import SearchTracksScreen from "../features/search/screens/SearchTracksScreen";
+import TrackDetailsScreen from "../features/search/screens/TrackDetailsScreen";
+import RoomSettingsScreen from "../features/rooms/screens/RoomSettingsScreen";
+import RoomInvitationsScreen from "../features/rooms/screens/RoomInvitationsScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -39,6 +43,11 @@ export type RootStackParamList = {
   FriendsList: undefined;
   FriendProfile: { userId: number };
   AllUsers: undefined;
+
+  SearchTracks: undefined;
+  TrackDetails: { track: any };
+  RoomSettings: { roomId: string };
+  RoomInvitations: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -70,6 +79,10 @@ return (
           <Stack.Screen name="FriendsList" component={FriendsListScreen} />
           <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
           <Stack.Screen name="AllUsers" component={AllUsersScreen} />
+          <Stack.Screen name="SearchTracks" component={SearchTracksScreen} />
+          <Stack.Screen name="TrackDetails" component={TrackDetailsScreen} />
+          <Stack.Screen name="RoomSettings" component={RoomSettingsScreen} />
+          <Stack.Screen name="RoomInvitations" component={RoomInvitationsScreen} />
         </>
       )}
     </Stack.Navigator>

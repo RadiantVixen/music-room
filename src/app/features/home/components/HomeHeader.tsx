@@ -1,8 +1,12 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { currentUser } from "../data/mockRooms"
+import { useAppNavigation } from "../../../hooks/useAppNavigation"
+import { useRoomsStore } from "../../../store/roomsStore";
 
 export default function HomeHeader() {
+  const navigation = useAppNavigation();
+  const { invitations, fetchInvitations } = useRoomsStore();
   return (
     <View style={styles.container}>
       <View style={styles.left}>
@@ -16,11 +20,19 @@ export default function HomeHeader() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.notification}>
+      <TouchableOpacity
+        style={styles.notification}
+        onPress={() => navigation.navigate("RoomInvitations")}
+      >
         <Ionicons name="notifications-outline" size={22} color="white" />
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>3</Text>
-        </View>
+
+        {!!invitations.length && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {invitations.length}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   )

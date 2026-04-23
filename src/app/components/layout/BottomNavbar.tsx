@@ -3,12 +3,15 @@ import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppNavigation } from "../../hooks/useAppNavigation";
 import { useAppRoute } from "../../hooks/useAppRoute";
+import { useRoomsStore } from "../../store/roomsStore";
 
 export default function BottomNavbar() {
+  const { rooms } = useRoomsStore();
+
   return (
     <View style={styles.container}>
       <NavItem icon="home" label="Home" route="Home" />
-      <NavItem icon="search" label="Search" route="Search" />
+      <NavItem icon="search" label="Search" route="SearchTracks" />
       <NavItem icon="radio" label="Rooms" route="RoomsList" />
       <NavItem icon="person" label="Profile" route="Profile" />
     </View>
