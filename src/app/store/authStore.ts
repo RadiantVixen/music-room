@@ -12,6 +12,7 @@ import {
   socialLoginRequest,
   updateMeRequest,
   changePasswordRequest,
+  updateMusicPreferencesRequest,
 } from "../api/auth";
 
 type User = {
@@ -61,6 +62,10 @@ type AuthState = {
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setUser: (user: User | null) => void;
+
+  updateMusicPreferences: (data: {
+    favorite_genres: string[];
+  }) => Promise<void>;
 
   updateMe: (data: UpdateProfilePayload) => Promise<User>;
   refreshMe: () => Promise<User>;
@@ -289,6 +294,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       console.log("Social login error:", error);
       throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  updateMusicPreferences: async (data) => {
+    set({ isLoading: true });
+
+    try {
+      await updateMusicPreferencesRequest(data);
+
+      // 🔥 refresh user after update
+      const user = await getMeRequest();
+      set({ user });
     } finally {
       set({ isLoading: false });
     }

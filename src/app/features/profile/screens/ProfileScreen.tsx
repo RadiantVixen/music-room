@@ -28,7 +28,10 @@ export default function ProfileScreen() {
           onSecondaryPress={() => navigation.navigate("EditProfile")}
         />
         <ProfileStats stats={user?.stats} />
-        <MusicPreferences genres={user?.music_preferences?.favorite_genres || []} />
+        <MusicPreferences
+          genres={user?.music_preferences?.favorite_genres || []}
+          onPress={() => navigation.navigate("EditMusicPreferences")}
+        />
         <ProfileSettings />
       </ScrollView>
     </AppLayout>

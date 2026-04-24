@@ -22,6 +22,7 @@ import SearchTracksScreen from "../features/search/screens/SearchTracksScreen";
 import TrackDetailsScreen from "../features/search/screens/TrackDetailsScreen";
 import RoomSettingsScreen from "../features/rooms/screens/RoomSettingsScreen";
 import RoomInvitationsScreen from "../features/rooms/screens/RoomInvitationsScreen";
+import EditMusicPreferencesScreen from "../features/profile/screens/EditMusicPreferencesScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -48,6 +49,7 @@ export type RootStackParamList = {
   TrackDetails: { track: any };
   RoomSettings: { roomId: string };
   RoomInvitations: undefined;
+  EditMusicPreferences: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -83,6 +85,7 @@ return (
           <Stack.Screen name="TrackDetails" component={TrackDetailsScreen} />
           <Stack.Screen name="RoomSettings" component={RoomSettingsScreen} />
           <Stack.Screen name="RoomInvitations" component={RoomInvitationsScreen} />
+          <Stack.Screen name="EditMusicPreferences" component={EditMusicPreferencesScreen} />
         </>
       )}
     </Stack.Navigator>

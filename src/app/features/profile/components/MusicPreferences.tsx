@@ -1,13 +1,23 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   genres?: string[];
+  onPress?: () => void;
 };
 
-export default function MusicPreferences({ genres = [] }: Props) {
+export default function MusicPreferences({ genres = [], onPress }: Props) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Music Preferences</Text>
+    <TouchableOpacity
+      style={styles.container}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Music Preferences</Text>
+
+        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+      </View>
 
       <View style={styles.chips}>
         {genres.length > 0 ? (
@@ -20,11 +30,17 @@ export default function MusicPreferences({ genres = [] }: Props) {
           <Text style={styles.emptyText}>No music preferences yet.</Text>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   container: {
     paddingHorizontal: 20,
     marginTop: 20,
