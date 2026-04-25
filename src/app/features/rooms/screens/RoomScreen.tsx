@@ -1,4 +1,9 @@
-import { View, StyleSheet } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  useWindowDimensions,
+} from "react-native";
 import { useEffect } from "react";
 import AppLayout from "../../../components/layout/AppLayout";
 import RoomHeader from "../components/RoomHeader";
@@ -10,13 +15,10 @@ import DelegationRoomScreen from "./DelegationRoomScreen";
 export default function RoomScreen() {
   const route = useAppRoute<"Room">();
   const { roomId } = route.params;
+  const { width: windowWidth } = useWindowDimensions();
 
-  const {
-    selectedRoom,
-    fetchRoomDetails,
-    clearSelectedRoom,
-    isLoading,
-  } = useRoomsStore();
+  const { selectedRoom, fetchRoomDetails, clearSelectedRoom, isLoading } =
+    useRoomsStore();
 
   useEffect(() => {
     fetchRoomDetails(roomId);
@@ -30,21 +32,21 @@ export default function RoomScreen() {
 
   return (
     <AppLayout
-      header={
-        <RoomHeader
-          roomName={room?.name || "Room"}
-          roomId={roomId}
-        />
-      }
+      header={<RoomHeader roomName={room?.name || "Room"} roomId={roomId} />}
       showNavbar={false}
     >
-      <View style={styles.container}>
-        {!room || isLoading ? null : room.room_type === "delegation" ? (
-          <DelegationRoomScreen room={room} />
-        ) : (
-          <VoteRoomScreen room={room} />
-        )}
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={windowWidth > 768}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.container}>
+          {!room || isLoading ? null : room.room_type === "delegation" ? (
+            <DelegationRoomScreen room={room} />
+          ) : (
+            <VoteRoomScreen room={room} />
+          )}
+        </View>
+      </ScrollView>
     </AppLayout>
   );
 }

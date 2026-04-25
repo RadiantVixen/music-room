@@ -7,20 +7,20 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import AppLayout from "../../../components/layout/AppLayout";
 import MusicHeader from "../../search/components/ScreenHeader";
 import { useRoomsStore } from "../../../store/roomsStore";
 
 export default function RoomInvitationsScreen() {
-  const {
-    invitations,
-    fetchInvitations,
-    respondToInvitation,
-    isLoading,
-  } = useRoomsStore();
+  const { width: windowWidth } = useWindowDimensions();
+  const { invitations, fetchInvitations, respondToInvitation, isLoading } =
+    useRoomsStore();
 
-  const [submittingId, setSubmittingId] = useState<string | number | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | number | null>(
+    null,
+  );
 
   useEffect(() => {
     fetchInvitations();
@@ -28,7 +28,7 @@ export default function RoomInvitationsScreen() {
 
   const handleAction = async (
     roomId: number | string,
-    action: "accept" | "decline"
+    action: "accept" | "decline",
   ) => {
     try {
       setSubmittingId(roomId);
@@ -36,7 +36,7 @@ export default function RoomInvitationsScreen() {
     } catch (error: any) {
       Alert.alert(
         "Error",
-        error?.response?.data?.detail || "Failed to update invitation"
+        error?.response?.data?.detail || "Failed to update invitation",
       );
     } finally {
       setSubmittingId(null);
@@ -57,12 +57,14 @@ export default function RoomInvitationsScreen() {
           <FlatList
             data={invitations}
             keyExtractor={(item: any) => String(item.id)}
+            showsVerticalScrollIndicator={windowWidth > 768}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               <View style={styles.center}>
                 <Text style={styles.emptyTitle}>No pending invitations</Text>
                 <Text style={styles.emptyText}>
-                  When someone invites you to a private room, it will appear here.
+                  When someone invites you to a private room, it will appear
+                  here.
                 </Text>
               </View>
             }
@@ -70,7 +72,9 @@ export default function RoomInvitationsScreen() {
               const roomId = item.room?.id || item.room_id;
               const roomName = item.room?.name || `Room #${roomId}`;
               const hostName =
-                item.invited_by_username || item.room?.host?.displayName || "Unknown";
+                item.invited_by_username ||
+                item.room?.host?.displayName ||
+                "Unknown";
 
               const loading = String(submittingId) === String(roomId);
 

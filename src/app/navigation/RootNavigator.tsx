@@ -54,11 +54,43 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const linking = {
+  prefixes: ['http://localhost:8081', 'musicroom://'],
+  config: {
+    screens: {
+      Login: 'login',
+      Signup: 'signup',
+      ForgotPassword: 'forgot-password',
+      ResetPassword: 'reset-password/:resetToken',
+      VerifyEmail: 'verify-email',
+
+      Home: '',
+      Profile: 'profile/:userId',
+      EditProfile: 'edit-profile',
+      ChangePassword: 'change-password',
+      
+      CreateRoom: 'create-room',
+      RoomsList: 'rooms',
+      Room: 'room/:roomId',
+      RoomSettings: 'room/:roomId/settings',
+      RoomInvitations: 'invitations',
+      
+      FriendsList: 'friends',
+      FriendProfile: 'user/:userId',
+      AllUsers: 'users',
+
+      SearchTracks: 'search',
+      TrackDetails: 'track',
+      EditMusicPreferences: 'music-preferences',
+    },
+  },
+};
+
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
 return (
-  <NavigationContainer>
+  <NavigationContainer linking={linking}>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <>
