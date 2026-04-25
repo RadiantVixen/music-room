@@ -1,5 +1,13 @@
 import React, { useEffect } from "react";
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  useWindowDimensions,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import AppLayout from "../../../components/layout/AppLayout";
@@ -11,6 +19,7 @@ import { useRoomsStore } from "../../../store/roomsStore";
 
 export default function HomeScreen() {
   const navigation = useAppNavigation();
+  const { width: windowWidth } = useWindowDimensions();
 
   const {
     rooms,
@@ -32,9 +41,10 @@ export default function HomeScreen() {
 
   return (
     <AppLayout>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-
-
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={windowWidth > 768}
+      >
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.createBtn}
@@ -82,7 +92,9 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity onPress={() => navigation.navigate("RoomsList")}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("RoomsList")}
+              >
                 <Text style={styles.seeAll}>See All</Text>
               </TouchableOpacity>
             </View>
@@ -104,7 +116,9 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>My Rooms</Text>
 
             {myRooms.length === 0 ? (
-              <Text style={styles.emptyText}>You have not created any rooms yet.</Text>
+              <Text style={styles.emptyText}>
+                You have not created any rooms yet.
+              </Text>
             ) : (
               myRooms.map((room) => (
                 <RecentRoomItem

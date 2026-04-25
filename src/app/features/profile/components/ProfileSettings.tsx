@@ -8,20 +8,21 @@ export default function ProfileSettings() {
   const navigation = useAppNavigation();
 
   const handleLogout = () => {
-    Alert.alert(
-      "Log out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-          },
+    Alert.alert("Log out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          // Reset navigation stack after logout
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Login" as never }],
+          });
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (

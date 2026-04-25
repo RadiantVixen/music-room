@@ -6,14 +6,19 @@ type Props = {
   title: string;
   icon: "google" | "facebook";
   onPress?: () => void;
+  disabled?: boolean;
 };
 
-export default function SocialButton({ title, icon, onPress }: Props) {
+export default function SocialButton({ title, icon, onPress, disabled }: Props) {
   return (
-    <TouchableOpacity style={styles.button} onPress={onPress}>
+    <TouchableOpacity 
+      style={[styles.button, disabled && styles.buttonDisabled]} 
+      onPress={onPress}
+      disabled={disabled}
+    >
       <View style={styles.content}>
-        <FontAwesome name={icon} size={18} color="#fff" />
-        <Text style={styles.text}>{title}</Text>
+        <FontAwesome name={icon} size={18} color={disabled ? "#8D86A5" : "#fff"} />
+        <Text style={[styles.text, disabled && styles.textDisabled]}>{title}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -30,6 +35,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  buttonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#0F0B16",
+  },
   content: {
     flexDirection: "row",
     alignItems: "center",
@@ -39,5 +48,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 15,
+  },
+  textDisabled: {
+    color: "#8D86A5",
   },
 });

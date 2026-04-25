@@ -8,6 +8,7 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoomsStore } from "../../../store/roomsStore";
@@ -18,13 +19,10 @@ import MusicHeader from "../components/ScreenHeader";
 export default function SearchTracksScreen() {
   const navigation = useNavigation<any>();
   const [query, setQuery] = useState("");
+  const { width: windowWidth } = useWindowDimensions();
 
-  const {
-    searchTracks,
-    searchResults,
-    searchLoading,
-    clearSearchResults,
-  } = useRoomsStore();
+  const { searchTracks, searchResults, searchLoading, clearSearchResults } =
+    useRoomsStore();
 
   useEffect(() => {
     return () => {
@@ -86,9 +84,7 @@ export default function SearchTracksScreen() {
           <Ionicons name="musical-notes-outline" size={28} color="#9956F5" />
         </View>
         <Text style={styles.stateTitle}>No tracks found</Text>
-        <Text style={styles.stateText}>
-          Try another song name or artist
-        </Text>
+        <Text style={styles.stateText}>Try another song name or artist</Text>
       </View>
     );
   };
@@ -116,15 +112,16 @@ export default function SearchTracksScreen() {
           />
 
           {!!query.length && (
-            <TouchableOpacity onPress={() => setQuery("")} style={styles.clearBtn}>
+            <TouchableOpacity
+              onPress={() => setQuery("")}
+              style={styles.clearBtn}
+            >
               <Ionicons name="close-circle" size={18} color="#8D86A5" />
             </TouchableOpacity>
           )}
         </View>
 
-        {!!resultLabel && (
-          <Text style={styles.resultCount}>{resultLabel}</Text>
-        )}
+        {!!resultLabel && <Text style={styles.resultCount}>{resultLabel}</Text>}
 
         {!hasResults ? (
           renderEmptyState()
@@ -132,7 +129,7 @@ export default function SearchTracksScreen() {
           <FlatList
             data={searchResults}
             keyExtractor={(item) => item.deezerId}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={windowWidth > 768}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -164,11 +161,7 @@ export default function SearchTracksScreen() {
                 </View>
 
                 <View style={styles.trailing}>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color="#6F6887"
-                  />
+                  <Ionicons name="chevron-forward" size={18} color="#6F6887" />
                 </View>
               </TouchableOpacity>
             )}
