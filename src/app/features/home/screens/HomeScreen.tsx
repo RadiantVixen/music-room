@@ -15,17 +15,21 @@ export default function HomeScreen() {
   const {
     rooms,
     myRooms,
+    nearbyRooms,
     isLoading,
     fetchRooms,
     fetchMyRooms,
     fetchInvitations,
+    fetchNearbyDemoRooms,
   } = useRoomsStore();
+
 
   useEffect(() => {
     fetchRooms();
     fetchMyRooms();
     fetchInvitations();
-  }, [fetchRooms, fetchMyRooms, fetchInvitations]);
+    fetchNearbyDemoRooms();
+  }, [fetchRooms, fetchMyRooms, fetchInvitations, fetchNearbyDemoRooms]);
 
   const liveRooms = rooms.filter((room) => room.isLive);
   const featuredRoom = liveRooms[0] || rooms[0];
@@ -73,6 +77,32 @@ export default function HomeScreen() {
                 />
               </>
             )}
+            {nearbyRooms.length > 0 && (
+            <>
+              <View style={styles.sectionRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>Nearby Events</Text>
+                  <Text style={styles.subtitle}>
+                    Public rooms detected near your demo location
+                  </Text>
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {nearbyRooms.map((room) => (
+                  <LiveRoomCard
+                    key={room.id}
+                    room={room}
+                    onPress={() =>
+                      navigation.navigate("Room", {
+                        roomId: String(room.id),
+                      })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </>
+          )}
 
             <View style={styles.sectionRow}>
               <View>

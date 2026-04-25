@@ -26,6 +26,7 @@ import {
   inviteToRoomRequest,
   leaveRoomRequest,
   respondToRoomInvitationRequest,
+  getNearbyDemoRoomsRequest,
 } from "../api/rooms";
 
 type Track = {
@@ -134,6 +135,10 @@ type RoomsState = {
 
   inviteToRoom: (roomId: number | string, userId: number) => Promise<void>;
   leaveRoom: (roomId: number | string) => Promise<void>;
+
+  nearbyRooms: Room[];
+  fetchNearbyDemoRooms: () => Promise<void>;
+
 
   respondToInvitation: (
     roomId: number | string,
@@ -513,6 +518,17 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
 
     if (action === "accept") {
       await get().fetchMyRooms();
+    }
+  },
+  
+  nearbyRooms: [],
+  fetchNearbyDemoRooms: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await getNearbyDemoRoomsRequest();
+      set({ nearbyRooms: data });
+    } finally {
+      set({ isLoading: false });
     }
   },
 
