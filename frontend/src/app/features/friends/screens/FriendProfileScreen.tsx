@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Alert, ScrollView, Text } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import AppLayout from "../../../components/layout/AppLayout";
-import ProfileHeader from "../../profile/components/ProfileHeader"
+import ProfileHeader from "../../profile/components/ProfileHeader";
 import ProfileStats from "../../profile/components/ProfileStats";
 import MusicPreferences from "../../profile/components/MusicPreferences";
 import FriendProfileHeaderNav from "../components/FriendProfileHeaderNav";
@@ -18,32 +18,38 @@ export default function FriendProfileScreen() {
     sendFriendRequest,
     removeFriend,
     blockUser,
+    respondToFriendRequest,
     isLoading,
     clearSelectedFriendProfile,
   } = useFriendsStore();
 
   useEffect(() => {
-    if (userId) fetchFriendProfile(userId);
+    if (userId) {
+      fetchFriendProfile(userId);
+    }
 
     return () => {
       clearSelectedFriendProfile();
     };
   }, [userId]);
 
-  const relationship = selectedFriendProfile?.relationship;
 
   const handlePrimaryAction = async () => {
     try {
       if (!selectedFriendProfile) return;
 
-      if (relationship?.status === "none") {
+      if (relationshipStatus === "none") {
         await sendFriendRequest(selectedFriendProfile.id);
         await fetchFriendProfile(selectedFriendProfile.id);
         Alert.alert("Success", "Friend request sent");
-      } else if (relationship?.status === "friends") {
+      } else if (relationshipStatus === "friends") {
         await removeFriend(selectedFriendProfile.id);
         await fetchFriendProfile(selectedFriendProfile.id);
         Alert.alert("Success", "Friend removed");
+      } else if (relationshipStatus === "request_received" && requestId) {
+        await respondToFriendRequest(requestId, "accept");
+        await fetchFriendProfile(selectedFriendProfile.id);
+        Alert.alert("Success", "Friend request accepted");
       }
     } catch {
       Alert.alert("Error", "Something went wrong");
@@ -53,24 +59,41 @@ export default function FriendProfileScreen() {
   const handleSecondaryAction = async () => {
     try {
       if (!selectedFriendProfile) return;
-      await blockUser(selectedFriendProfile.id);
-      Alert.alert("Success", "User blocked");
+
+      if (relationshipStatus === "friends") {
+        await blockUser(selectedFriendProfile.id);
+        await fetchFriendProfile(selectedFriendProfile.id);
+        Alert.alert("Success", "User blocked");
+      } else if (relationshipStatus === "request_received" && requestId) {
+        await respondToFriendRequest(requestId, "decline");
+        await fetchFriendProfile(selectedFriendProfile.id);
+        Alert.alert("Success", "Friend request rejected");
+      }
     } catch {
-      Alert.alert("Error", "Failed to block user");
+      Alert.alert("Error", "Failed to process action");
     }
   };
 
+  const relationshipStatus = selectedFriendProfile?.relationship?.status ?? "none";
+  const requestId = selectedFriendProfile?.relationship?.request_id;
+
   const primaryButtonText =
-    relationship?.status === "friends"
+    relationshipStatus === "friends"
       ? "Unfriend"
-      : relationship?.status === "none"
+      : relationshipStatus === "none"
       ? "Add Friend"
-      : relationship?.status === "request_sent"
+      : relationshipStatus === "request_sent"
       ? "Request Sent"
+      : relationshipStatus === "request_received"
+      ? "Accept"
       : undefined;
 
   const secondaryButtonText =
-    relationship?.status === "friends" ? "Block" : undefined;
+    relationshipStatus === "friends"
+      ? "Block"
+      : relationshipStatus === "request_received"
+      ? "Reject"
+      : undefined;
 
   return (
     <AppLayout header={<FriendProfileHeaderNav />}>
@@ -83,18 +106,26 @@ export default function FriendProfileScreen() {
           <>
             <ProfileHeader
               avatar={selectedFriendProfile.profile?.avatar}
-              name={selectedFriendProfile.first_name}
+              name={selectedFriendProfile.first_name || selectedFriendProfile.username}
               username={selectedFriendProfile.username}
               bio={selectedFriendProfile.profile?.bio}
               primaryButtonText={primaryButtonText}
               secondaryButtonText={secondaryButtonText}
               onPrimaryPress={
-                relationship?.status === "request_sent" ? undefined : handlePrimaryAction
+                relationshipStatus === "request_sent" ? undefined : handlePrimaryAction
               }
               onSecondaryPress={handleSecondaryAction}
             />
 
-            <ProfileStats stats={selectedFriendProfile.stats} />
+            <ProfileStats
+              stats={
+                selectedFriendProfile.stats || {
+                  rooms_count: 0,
+                  friends_count: 0,
+                  vibes_count: 0,
+                }
+              }
+            />
 
             <MusicPreferences
               genres={selectedFriendProfile.music_preferences?.favorite_genres || []}

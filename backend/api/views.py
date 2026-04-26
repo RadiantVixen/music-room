@@ -1,3 +1,4 @@
+from .deezer_service import search_deezer_tracks
 from .permissions import IsChatService
 from rest_framework import permissions, status, generics
 from rest_framework.response import Response
@@ -5,12 +6,13 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, authenticate
 from django.http import HttpResponse
 from django.conf import settings
-from .models import CustomUser, FriendRequest, Profile
+from .models import CustomUser, Profile
 from .serializers import (
     UserSerializer, ProfileSerializer, ChangePasswordSerializer,
     LoginSerializer, TokenResponseSerializer, RegisterSerializer,
     LogoutSerializer, TokenRefreshSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
-    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer,
+    ResetPasswordSerializer, UpdateProfileSerializer, SocialLoginSerializer, DeezerTrackSearchQuerySerializer,
+    DeezerTrackSearchResultSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -29,8 +31,10 @@ import os
 from .extend_schema import (
     login_schema, logout_schema, register_schema, profile_schema,
     change_password_schema, forgot_password_schema,
-    deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema,
+    deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema, 
+    deezer_track_search_schema,
 )
+from drf_spectacular.openapi import OpenApiParameter, OpenApiResponse
 from .logging_utils import log_action
 from .permissions import IsStaffRoleUser
 import random
@@ -38,6 +42,8 @@ from datetime import timedelta
 from django.utils import timezone
 from .models import CustomUser, Profile, PasswordResetCode
 from .serializers import VerifyResetCodeSerializer
+from api import extend_schema
+
 User = get_user_model()
 
 def generate_reset_code():
@@ -494,13 +500,17 @@ class UserListView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
-        users = CustomUser.objects.select_related('profile').all().order_by('id')
+        users = (
+            CustomUser.objects
+            .select_related('profile')
+            .exclude(id=request.user.id)
+            .order_by('id')
+        )
         data = UserSerializer(users, many=True, context={'request': request}).data
         return Response({'count': len(data), 'data': data}, status=status.HTTP_200_OK)
 
-
 class UserAdminDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsStaffRoleUser]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
@@ -532,31 +542,22 @@ class UserAdminDetailView(APIView):
         )
 
 
-class BlockUserView(APIView):
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+@deezer_track_search_schema
+class DeezerTrackSearchView(APIView):
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
 
-    def post(self, request, user_id):
-        target = get_object_or_404(CustomUser, pk=user_id)
-
-        if target == request.user:
-            return Response({'error': 'You cannot block yourself.'}, status=400)
-
-        relation = FriendRequest.objects.filter(
-            Q(sender=request.user, receiver=target) |
-            Q(sender=target, receiver=request.user)
-        ).order_by('-updated_at').first()
-
-        if relation:
-            relation.sender = request.user
-            relation.receiver = target
-            relation.status = 'blocked'
-            relation.save(update_fields=['sender', 'receiver', 'status', 'updated_at'])
-        else:
-            FriendRequest.objects.create(
-                sender=request.user,
-                receiver=target,
-                status='blocked',
+        if len(query) < 2:
+            return Response(
+                {"detail": "Query must be at least 2 characters."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({'message': 'User blocked successfully.'}, status=200)
+        try:
+            tracks = search_deezer_tracks(query=query, limit=10)
+            return Response(tracks, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"detail": "Deezer search failed.", "error": str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )

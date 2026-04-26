@@ -5,10 +5,18 @@ export default function PlayerControls({
   isPlaying,
   onPlay,
   onPause,
-}: any) {
+  onNext,
+  onPrevious,
+}: {
+  isPlaying: boolean;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
+}) {
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.sideButton}>
+      <TouchableOpacity style={styles.sideButton} onPress={onPrevious}>
         <Ionicons name="play-skip-back" size={24} color="#fff" />
       </TouchableOpacity>
 
@@ -23,7 +31,7 @@ export default function PlayerControls({
         />
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.sideButton}>
+      <TouchableOpacity style={styles.sideButton} onPress={onNext}>
         <Ionicons name="play-skip-forward" size={24} color="#fff" />
       </TouchableOpacity>
     </View>

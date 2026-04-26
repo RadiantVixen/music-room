@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import CustomUser, Profile, MusicPreferences, FriendRequest, Room, RoomMembership, Notification, UserAnalytics, UserListeningHistory, SmartPlaylist, RecommendationLog
+from .models import CustomUser, Profile, MusicPreferences, FriendRequest, Room, RoomMembership
 from django.utils.text import slugify
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema_field
 import re
 
 
@@ -237,6 +238,8 @@ class UserSerializer(serializers.ModelSerializer):
     music_preferences = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
 
+    relationship = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
         fields = [
@@ -249,9 +252,52 @@ class UserSerializer(serializers.ModelSerializer):
             'profile',
             'music_preferences',
             'stats',
+            'relationship',
         ]
-        read_only_fields = ['id', 'role', 'music_preferences', 'stats']
+        read_only_fields = ['id', 'role', 'music_preferences', 'stats', 'relationship']
+    def get_relationship(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return {'status': 'none'}
 
+        current_user = request.user
+
+        if current_user.id == obj.id:
+            return {'status': 'self'}
+
+        friendship = FriendRequest.objects.filter(
+            Q(sender=current_user, receiver=obj) |
+            Q(sender=obj, receiver=current_user)
+        ).order_by('-created_at').first()
+
+        if not friendship:
+            return {'status': 'none'}
+
+        if friendship.status == 'accepted':
+            return {
+                'status': 'friends',
+                'request_id': friendship.id,
+            }
+
+        if friendship.status == 'blocked':
+            return {
+                'status': 'blocked',
+                'request_id': friendship.id,
+            }
+
+        if friendship.status == 'pending':
+            if friendship.sender_id == current_user.id:
+                return {
+                    'status': 'request_sent',
+                    'request_id': friendship.id,
+                }
+            else:
+                return {
+                    'status': 'request_received',
+                    'request_id': friendship.id,
+                }
+        return {'status': 'none'}
+    
     def get_music_preferences(self, obj):
         try:
             prefs = obj.profile.music_preferences
@@ -429,126 +475,13 @@ class PublicUserSerializer(serializers.ModelSerializer):
             pass
         return None
 
-class FriendProfileSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer(read_only=True)
-    music_preferences = serializers.SerializerMethodField()
-    stats = serializers.SerializerMethodField()
-    relationship = serializers.SerializerMethodField()
 
-    class Meta:
-        model = CustomUser
-        fields = [
-            'id',
-            'username',
-            'first_name',
-            'email',
-            'profile',
-            'music_preferences',
-            'stats',
-            'relationship',
-        ]
-
-    def get_music_preferences(self, obj):
-        try:
-            prefs = obj.profile.music_preferences
-            return NestedMusicPreferencesSerializer(prefs).data
-        except MusicPreferences.DoesNotExist:
-            return {
-                'favorite_genres': [],
-                'favorite_artists': [],
-                'favorite_tracks': [],
-                'updated_at': None,
-            }
-
-    def get_stats(self, obj):
-        rooms_count = Room.objects.filter(owner=obj).count()
-
-        friends_count = FriendRequest.objects.filter(
-            status='accepted'
-        ).filter(
-            Q(sender=obj) | Q(receiver=obj)
-        ).count()
-
-        return {
-            'rooms_count': rooms_count,
-            'friends_count': friends_count,
-            'vibes_count': 0,
-        }
-
-    def get_relationship(self, obj):
-        request = self.context.get('request')
-        me = request.user if request else None
-
-        if not me or me.id == obj.id:
-            return {
-                'status': 'self',
-                'request_id': None,
-                'is_friend': False,
-                'can_add_friend': False,
-                'can_unfriend': False,
-                'can_block': False,
-            }
-
-        relation = FriendRequest.objects.filter(
-            Q(sender=me, receiver=obj) | Q(sender=obj, receiver=me)
-        ).order_by('-updated_at').first()
-
-        if not relation:
-            return {
-                'status': 'none',
-                'request_id': None,
-                'is_friend': False,
-                'can_add_friend': True,
-                'can_unfriend': False,
-                'can_block': True,
-            }
-
-        if relation.status == 'accepted':
-            return {
-                'status': 'friends',
-                'request_id': relation.id,
-                'is_friend': True,
-                'can_add_friend': False,
-                'can_unfriend': True,
-                'can_block': True,
-            }
-
-        if relation.status == 'pending':
-            if relation.sender_id == me.id:
-                status_value = 'request_sent'
-            else:
-                status_value = 'request_received'
-
-            return {
-                'status': status_value,
-                'request_id': relation.id,
-                'is_friend': False,
-                'can_add_friend': False,
-                'can_unfriend': False,
-                'can_block': True,
-            }
-
-        if relation.status == 'blocked':
-            return {
-                'status': 'blocked',
-                'request_id': relation.id,
-                'is_friend': False,
-                'can_add_friend': False,
-                'can_unfriend': False,
-                'can_block': False,
-            }
-
-        return {
-            'status': relation.status,
-            'request_id': relation.id,
-            'is_friend': False,
-            'can_add_friend': False,
-            'can_unfriend': False,
-            'can_block': True,
-        }
 # ─── Rooms ────────────────────────────────────────────────────────────────────
 
 class RoomMembershipSerializer(serializers.ModelSerializer):
+    room_id = serializers.IntegerField(source='room.id', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True)
+
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
     user_username = serializers.CharField(source='user.username', read_only=True)
@@ -557,50 +490,122 @@ class RoomMembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomMembership
         fields = [
-            'id', 'user_id', 'user_email', 'user_username',
-            'status', 'invited_by_id', 'created_at', 'updated_at',
+            'id',
+            'room_id',
+            'room_name',
+            'user_id',
+            'user_email',
+            'user_username',
+            'status',
+            'invited_by_id',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = fields
 
 
 class RoomSerializer(serializers.ModelSerializer):
-    owner_id = serializers.IntegerField(source='owner.id', read_only=True)
-    owner_username = serializers.CharField(source='owner.username', read_only=True)
-    member_count = serializers.SerializerMethodField()
-    is_open = serializers.SerializerMethodField()
+    coverImage = serializers.URLField(source='cover_image', read_only=True)
+    isPublic = serializers.SerializerMethodField()
+    isLive = serializers.BooleanField(source='is_live', read_only=True)
+    participantCount = serializers.IntegerField(source='participant_count', read_only=True)
+    host = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    currentTrack = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
         fields = [
-            'id', 'owner_id', 'owner_username', 'name', 'description',
+            'id', 'name', 'description', 'coverImage',
+            'isPublic', 'isLive', 'participantCount', 'host',
+            'genres', 'createdAt', 'currentTrack',
+            # Keep original fields for backward compatibility/internal use if needed
             'room_type', 'visibility', 'license_type',
-            'geo_lat', 'geo_lon', 'geo_radius_meters',
-            'active_from', 'active_until',
-            'is_active', 'is_open', 'member_count',
-            'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+        read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'isLive', 'coverImage', 'currentTrack']
 
-    def get_member_count(self, obj):
-        return obj.memberships.filter(status='accepted').count()
+    @extend_schema_field(serializers.BooleanField())
+    def get_isPublic(self, obj) -> bool:
+        return obj.visibility == 'public'
 
-    def get_is_open(self, obj):
-        return obj.is_open()
+    @extend_schema_field(serializers.JSONField(allow_null=True))
+    def get_currentTrack(self, obj) -> dict | None:
+        if obj.room_type != 'vote':
+            return None
 
-    def validate(self, attrs):
-        license_type = attrs.get('license_type', 'default')
-        if license_type == 'location':
-            if not all([attrs.get('geo_lat'), attrs.get('geo_lon'), attrs.get('geo_radius_meters')]):
-                raise serializers.ValidationError(
-                    'geo_lat, geo_lon and geo_radius_meters are required for location-restricted rooms.'
-                )
-        return attrs
+        from events.models import Track
+        from events.serializers import TrackSerializer
+
+        top_track = Track.objects.filter(room=obj).order_by('-vote_count', '-created_at', '-id').first()
+        if top_track:
+            return TrackSerializer(top_track, context=self.context).data
+        return None
+    def get_host(self, obj):
+        request = self.context.get('request')
+
+        avatar = None
+        try:
+            if obj.owner.profile.avatar:
+                avatar = request.build_absolute_uri(obj.owner.profile.avatar.url) if request else obj.owner.profile.avatar.url
+            elif obj.owner.profile.avatar_url:
+                avatar = obj.owner.profile.avatar_url
+        except:
+            pass
+
+        return {
+            "id": obj.owner.id,
+            "username": obj.owner.username,
+            "displayName": obj.owner.first_name or obj.owner.username,
+            "avatar": avatar
+        }
 
 
 class RoomCreateSerializer(RoomSerializer):
-    class Meta(RoomSerializer.Meta):
-        read_only_fields = ['id', 'owner_id', 'owner_username', 'created_at', 'updated_at', 'is_open', 'member_count']
+    coverImage = serializers.URLField(source='cover_image', required=False, allow_blank=True)
+    isLive = serializers.BooleanField(source='is_live', required=False, default=False)
 
+    class Meta(RoomSerializer.Meta):
+        read_only_fields = ['id', 'createdAt', 'host', 'participantCount', 'currentTrack']
+
+class RoomCreateUpdateSerializer(serializers.ModelSerializer):
+    coverImage = serializers.URLField(source='cover_image', required=False, allow_blank=True)
+    isPublic = serializers.BooleanField(required=False)
+    votingPermission = serializers.ChoiceField(
+        choices=['everyone', 'invited', 'location'],
+        required=False
+    )
+
+    class Meta:
+        model = Room
+        fields = [
+            'name',
+            'description',
+            'room_type',
+            'coverImage',
+            'genres',
+            'isPublic',
+            'votingPermission',
+            'geo_lat',
+            'geo_lon',
+            'geo_radius_meters',
+            'active_from',
+            'active_until',
+        ]
+
+    def validate(self, attrs):
+        # visibility
+        is_public = attrs.pop('isPublic', True)
+        attrs['visibility'] = 'public' if is_public else 'private'
+
+        # license
+        permission = attrs.pop('votingPermission', 'everyone')
+        attrs['license_type'] = {
+            'everyone': 'default',
+            'invited': 'invited',
+            'location': 'location',
+        }[permission]
+
+        return attrs
 
 class InviteToRoomSerializer(serializers.Serializer):
     user_id = serializers.IntegerField(help_text='ID of the user to invite to the room')
@@ -617,100 +622,29 @@ class RoomMembershipActionSerializer(serializers.Serializer):
         help_text='"accept" or "decline" the invitation',
     )
 
-# ===== BONUS FEATURES SERIALIZERS =====
-
-class NotificationSerializer(serializers.ModelSerializer):
-    """Serialize notification objects for API responses."""
-    
-    from_user_username = serializers.CharField(source='from_user.username', read_only=True)
-    
-    class Meta:
-        model = Notification
-        fields = [
-            'id',
-            'notification_type',
-            'title',
-            'message',
-            'from_user',
-            'from_user_username',
-            'is_read',
-            'related_room_id',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class UserAnalyticsSerializer(serializers.ModelSerializer):
-    """Serialize user analytics for dashboard."""
-    
-    class Meta:
-        model = UserAnalytics
-        fields = [
-            'total_songs_added',
-            'total_rooms_created',
-            'total_rooms_joined',
-            'total_playlists_created',
-            'average_session_duration',
-            'last_active',
-            'total_login_count',
-            'created_at',
-        ]
-        read_only_fields = ['created_at', 'last_active']
+
+class DeezerTrackSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(
+        min_length=2,
+        help_text="Track or artist search query (minimum 2 characters).",
+    )
 
 
-class UserListeningHistorySerializer(serializers.ModelSerializer):
-    """Serialize listening history for recommendations."""
-    
-    class Meta:
-        model = UserListeningHistory
-        fields = [
-            'id',
-            'song_id',
-            'song_title',
-            'artist_name',
-            'genre',
-            'listened_at',
-            'duration_listened',
-        ]
-        read_only_fields = ['id', 'listened_at']
+class DeezerTrackSearchResultSerializer(serializers.Serializer):
+    deezerId = serializers.CharField(help_text="Deezer track ID")
+    title = serializers.CharField(help_text="Track title")
+    artist = serializers.CharField(help_text="Artist name(s), comma separated")
+    album = serializers.CharField(help_text="Album name", allow_blank=True)
+    albumArt = serializers.URLField(help_text="Album cover image URL", allow_blank=True)
+    duration = serializers.IntegerField(help_text="Duration in seconds")
+    audioUrl = serializers.URLField(
+        help_text="Deezer preview URL (30s)",
+        allow_blank=True,
+    )
+    deezerUrl = serializers.URLField(
+        help_text="Deezer public track URL",
+        allow_blank=True,
+    )
 
-
-class SmartPlaylistSerializer(serializers.ModelSerializer):
-    """Serialize smart playlist objects."""
-    
-    song_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = SmartPlaylist
-        fields = [
-            'id',
-            'name',
-            'description',
-            'playlist_type',
-            'songs',
-            'song_count',
-            'cover_image',
-            'is_active',
-            'last_regenerated',
-            'created_at',
-        ]
-        read_only_fields = ['id', 'last_regenerated', 'created_at']
-    
-    def get_song_count(self, obj):
-        return len(obj.songs) if obj.songs else 0
-
-
-class RecommendationLogSerializer(serializers.ModelSerializer):
-    """Serialize recommendation logs for tracking."""
-    
-    class Meta:
-        model = RecommendationLog
-        fields = [
-            'id',
-            'recommendation_type',
-            'recommended_items',
-            'was_accepted',
-            'created_at',
-        ]
-        read_only_fields = ['id', 'created_at']

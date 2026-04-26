@@ -1,64 +1,94 @@
-import { Audio } from "expo-av"
-import { useEffect, useState } from "react"
+import { Audio } from "expo-av";
+import { useEffect, useRef, useState } from "react";
 
 export function useAudioPlayer(
   audioUrl?: string,
   options?: { onTrackEnd?: () => void }
 ) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [position, setPosition] = useState(0)
-  const [duration, setDuration] = useState(1)
+  const soundRef = useRef<Audio.Sound | null>(null);
 
-  async function play() {
-    if (!audioUrl) return
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(1);
 
-    if (sound) {
-      await sound.playAsync()
-      setIsPlaying(true)
-      return
-    }
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (!status?.isLoaded) return;
 
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: audioUrl },
-      { shouldPlay: true },
-      onPlaybackStatusUpdate
-    )
+    setPosition(status.positionMillis || 0);
+    setDuration(status.durationMillis || 1);
+    setIsPlaying(!!status.isPlaying);
 
-    setSound(newSound)
-    setIsPlaying(true)
-  }
-
-  function onPlaybackStatusUpdate(status: any) {
-    if (!status.isLoaded) return
-
-    setPosition(status.positionMillis)
-    setDuration(status.durationMillis || 1)
-    setIsPlaying(status.isPlaying)
-
-    // 🔥 THIS IS THE KEY
     if (status.didJustFinish) {
-      options?.onTrackEnd?.()
+      setIsPlaying(false);
+      setPosition(0);
+      options?.onTrackEnd?.();
     }
-  }
+  };
 
-  async function pause() {
-    await sound?.pauseAsync()
-    setIsPlaying(false)
-  }
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAndPlay() {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+
+      setIsPlaying(false);
+      setPosition(0);
+      setDuration(1);
+
+      if (!audioUrl) return;
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: true }, // auto play immediately
+        onPlaybackStatusUpdate
+      );
+
+      if (cancelled) {
+        await sound.unloadAsync();
+        return;
+      }
+
+      soundRef.current = sound;
+      setIsPlaying(true);
+    }
+
+    loadAndPlay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [audioUrl]);
 
   useEffect(() => {
     return () => {
-      sound?.unloadAsync()
-    }
-  }, [sound])
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+    };
+  }, []);
+
+  async function play() {
+    if (!soundRef.current) return;
+    await soundRef.current.playAsync();
+    setIsPlaying(true);
+  }
+
+  async function pause() {
+    if (!soundRef.current) return;
+    await soundRef.current.pauseAsync();
+    setIsPlaying(false);
+  }
 
   async function seekTo(value: number) {
-      if (!sound) return
-  
-      const newPosition = value * duration
-        await sound.setPositionAsync(newPosition)
-    }
+    if (!soundRef.current) return;
+    const newPosition = value * duration;
+    await soundRef.current.setPositionAsync(newPosition);
+  }
+
   return {
     play,
     pause,
@@ -66,5 +96,5 @@ export function useAudioPlayer(
     position,
     duration,
     seekTo,
-  }
+  };
 }

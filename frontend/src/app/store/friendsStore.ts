@@ -7,8 +7,9 @@ import {
   searchUsersRequest,
   sendFriendRequestRequest,
   respondToFriendRequestRequest,
-  getFriendProfileRequest,
+  getUserProfileRequest,
   blockUserRequest,
+  getAllUsersRequest
 } from "../api/friends";
 import { useAuthStore } from "./authStore";
 
@@ -82,6 +83,8 @@ type FriendsState = {
   searchedUsers: Friend[];
   selectedFriendProfile: FriendProfile | null;
   isLoading: boolean;
+  allUsers: Friend[];
+  usersLoading: boolean;
 
   fetchFriends: () => Promise<void>;
   fetchPendingRequests: () => Promise<void>;
@@ -95,6 +98,7 @@ type FriendsState = {
   removeFriend: (userId: number) => Promise<void>;
   fetchFriendProfile: (userId: number) => Promise<void>;
   blockUser: (userId: number) => Promise<void>;
+  fetchAllUsers: () => Promise<void>;
   clearSearchedUsers: () => void;
   clearSelectedFriendProfile: () => void;
 };
@@ -107,6 +111,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   searchedUsers: [],
   selectedFriendProfile: null,
   isLoading: false,
+  allUsers: [],
+  usersLoading: false,
 
   fetchFriends: async () => {
     set({ isLoading: true });
@@ -213,7 +219,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   fetchFriendProfile: async (userId: number) => {
     set({ isLoading: true });
     try {
-        const data = await getFriendProfileRequest(userId);
+        const data = await getUserProfileRequest(userId);
         set({ selectedFriendProfile: data });
     } finally {
         set({ isLoading: false });
@@ -229,6 +235,16 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     } finally {
         set({ isLoading: false });
     }
+    },
+
+    fetchAllUsers: async () => {
+      set({ usersLoading: true });
+      try {
+        const data = await getAllUsersRequest();
+        set({ allUsers: data });
+      } finally {
+        set({ usersLoading: false });
+      }
     },
 
   clearSelectedFriendProfile: () => set({ selectedFriendProfile: null }),

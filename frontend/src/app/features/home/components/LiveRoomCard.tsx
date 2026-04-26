@@ -1,22 +1,28 @@
 import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { getRoomImageFromGenre } from "../../../utils/placeholders";
 
-export default function LiveRoomCard({ room }: any) {
+export default function LiveRoomCard({ room, onPress }: any) {
   return (
-    <View style={styles.container}>
-      <Image source={{ uri: room.image }} style={styles.image} />
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.85}>
+      <Image
+        source={{ uri: room.coverImage || getRoomImageFromGenre(room.genres) }}
+        style={styles.image}
+      />
 
       <View style={styles.liveBadge}>
         <View style={styles.dot} />
         <Text style={styles.liveText}>LIVE</Text>
       </View>
 
-      <Text style={styles.title}>{room.title}</Text>
+      <Text style={styles.title} numberOfLines={1}>
+        {room.name}
+      </Text>
 
       <Text style={styles.listeners}>
-        👥 {room.listeners} listeners
+        👥 {room.participantCount || 0} listeners
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -26,13 +32,11 @@ const styles = StyleSheet.create({
     marginRight: 16,
     marginBottom: 20,
   },
-
   image: {
     width: "100%",
     height: 150,
     borderRadius: 16,
   },
-
   liveBadge: {
     position: "absolute",
     top: 10,
@@ -44,7 +48,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-
   dot: {
     width: 6,
     height: 6,
@@ -52,20 +55,17 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 6,
   },
-
   liveText: {
     color: "white",
     fontSize: 10,
     fontWeight: "700",
   },
-
   title: {
     color: "white",
     fontSize: 16,
     fontWeight: "700",
     marginTop: 8,
   },
-
   listeners: {
     color: "#9956F5",
     fontSize: 12,

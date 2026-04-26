@@ -28,6 +28,7 @@ export default function CreateRoomScreen() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [allowSuggestions, setAllowSuggestions] = useState(true);
   const [roomType, setRoomType] = useState<"vote" | "delegation">("vote");
+  const [showNearby, setShowNearby] = useState(false);
 
   const musicGenres = [
     "Pop",
@@ -67,8 +68,22 @@ export default function CreateRoomScreen() {
         room_type: roomType,
         coverImage: getRoomImageFromGenre(selectedGenres),
         genres: selectedGenres,
-        visibility ,
-        ...(roomType === "vote" && { license_type: licenseType }),
+        isPublic: visibility === "public",
+        
+        ...(showNearby && visibility === "public" && {
+          geo_lat: 33.5731,
+          geo_lon: -7.5898,
+          geo_radius_meters: 1000,
+        }),
+
+        ...(roomType === "vote" && {
+          votingPermission:
+            licenseType === "default"
+              ? "everyone"
+              : licenseType === "invited"
+              ? "invited"
+              : "location",
+        }),
       };
 
       const room = await createRoom(payload);
@@ -248,8 +263,6 @@ export default function CreateRoomScreen() {
           })}
         </View>
         {roomType === "vote" && (
-
-
         <View style={styles.settingCard}>
           <View style={{ flex: 1 }}>
             <Text style={styles.voteTitle}>Allow track suggestions</Text>
@@ -264,6 +277,22 @@ export default function CreateRoomScreen() {
             trackColor={{ true: "#22c55e" }}
           />
         </View>
+        )}
+        {visibility === "public" && (
+          <View style={styles.settingCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.voteTitle}>Show in Nearby Events</Text>
+              <Text style={styles.voteDesc}>
+                Make this public room discoverable near the demo location
+              </Text>
+            </View>
+
+            <Switch
+              value={showNearby}
+              onValueChange={setShowNearby}
+              trackColor={{ true: "#22c55e" }}
+            />
+          </View>
         )}
 
         <TouchableOpacity

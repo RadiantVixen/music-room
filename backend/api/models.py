@@ -3,6 +3,9 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import uuid
+from datetime import timedelta
+from django.conf import settings
 
 
 class UserRole(models.TextChoices):
@@ -26,13 +29,17 @@ class CustomUser(AbstractUser):
         return self.email
 
 
-
 class Profile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=255, blank=True)
     provider = models.CharField(max_length=50, blank=True, null=True)  # 'google', 'facebook', etc.
+    
+    # Standard image upload for local avatars
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    # Added for easy frontend mock data & external provider avatars
+    avatar_url = models.URLField(blank=True, null=True, default='https://i.pravatar.cc/100')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -41,10 +48,6 @@ class Profile(models.Model):
     def __str__(self):
         return f"Profile of {self.user.username}"
 
-
-import uuid
-from datetime import timedelta
-from django.conf import settings
 
 class PasswordResetCode(models.Model):
     user = models.ForeignKey(
@@ -74,6 +77,8 @@ class PasswordResetCode(models.Model):
 
     def __str__(self):
         return f"{self.email} - {self.code}"
+
+
 # ─── Music Preferences ────────────────────────────────────────────────────────
 
 class MusicPreferences(models.Model):
@@ -143,7 +148,6 @@ class RoomLicenseType(models.TextChoices):
 class RoomType(models.TextChoices):
     VOTE = 'vote', 'Music Track Vote'
     DELEGATION = 'delegation', 'Music Control Delegation'
-    PLAYLIST = 'playlist', 'Music Playlist Editor'
 
 
 class Room(models.Model):
@@ -167,6 +171,14 @@ class Room(models.Model):
         choices=RoomLicenseType.choices,
         default=RoomLicenseType.DEFAULT,
     )
+    
+    # --- New fields added to support Frontend Mock Data ---
+    cover_image = models.URLField(blank=True, null=True, help_text="URL for the room's cover art")
+    # is_live = models.BooleanField(default=False, help_text="Is the room currently active/live?")
+    genres = models.JSONField(default=list, blank=True, help_text='List of genres e.g., ["Pop", "EDM"]')
+    # participant_count = models.IntegerField(default=0, help_text="Number of listeners currently in the room")
+    # ------------------------------------------------------
+
     # Location / time restriction (used when license_type == LOCATION)
     geo_lat = models.FloatField(null=True, blank=True, help_text='Latitude for location restriction')
     geo_lon = models.FloatField(null=True, blank=True, help_text='Longitude for location restriction')
@@ -178,6 +190,14 @@ class Room(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def is_live(self):
+        return self.is_active and self.is_open()
+
+    @property
+    def participant_count(self):
+        return self.memberships.filter(status='accepted').count() + 1
 
     class Meta:
         ordering = ['-created_at']
@@ -260,119 +280,3 @@ def ensure_user_profile(sender, instance, created, **kwargs):
 @receiver(post_save, sender=CustomUser)
 def save_user_profile(sender, instance, **kwargs):
     Profile.objects.get_or_create(user=instance)
-
-
-# ===== BONUS FEATURES MODELS =====
-
-class Notification(models.Model):
-    """User notifications for friend activity, room invites, and system events."""
-    
-    NOTIFICATION_TYPES = [
-        ('friend_request', 'Friend Request'),
-        ('room_invite', 'Room Invitation'),
-        ('song_added', 'Song Added to Room'),
-        ('friend_online', 'Friend Came Online'),
-        ('system', 'System Notification'),
-    ]
-    
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='bonus_notifications')
-    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
-    title = models.CharField(max_length=255)
-    message = models.TextField()
-    from_user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')
-    is_read = models.BooleanField(default=False)
-    related_room_id = models.IntegerField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', 'is_read']),
-        ]
-    
-    def __str__(self):
-        return f"{self.title} - {self.user.username}"
-
-
-class UserAnalytics(models.Model):
-    """Track user activity metrics for analytics dashboard."""
-    
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='bonus_analytics')
-    total_songs_added = models.IntegerField(default=0)
-    total_rooms_created = models.IntegerField(default=0)
-    total_rooms_joined = models.IntegerField(default=0)
-    total_playlists_created = models.IntegerField(default=0)
-    average_session_duration = models.DurationField(default=timezone.timedelta(minutes=0))
-    last_active = models.DateTimeField(auto_now=True)
-    total_login_count = models.IntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"Analytics - {self.user.username}"
-
-
-class UserListeningHistory(models.Model):
-    """Track user's listening history for recommendations."""
-    
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='bonus_listening_history')
-    song_id = models.IntegerField()
-    song_title = models.CharField(max_length=255)
-    artist_name = models.CharField(max_length=255)
-    genre = models.CharField(max_length=100, null=True, blank=True)
-    listened_at = models.DateTimeField(auto_now_add=True)
-    duration_listened = models.DurationField(default=timezone.timedelta(seconds=0))
-    
-    class Meta:
-        ordering = ['-listened_at']
-        indexes = [
-            models.Index(fields=['user', '-listened_at']),
-        ]
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.song_title}"
-
-
-class SmartPlaylist(models.Model):
-    """AI-generated playlists based on user preferences and listening history."""
-    
-    PLAYLIST_TYPES = [
-        ('daily_mix', 'Daily Mix'),
-        ('genre_mood', 'Genre/Mood Mix'),
-        ('discovery', 'Discovery Playlist'),
-        ('friend_favorites', 'Friends\' Favorites'),
-        ('trending', 'Trending Now'),
-    ]
-    
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='bonus_smart_playlists')
-    name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    playlist_type = models.CharField(max_length=20, choices=PLAYLIST_TYPES)
-    songs = models.JSONField(default=list)
-    cover_image = models.URLField(null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-    last_regenerated = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-last_regenerated']
-    
-    def __str__(self):
-        return f"{self.name} - {self.user.username}"
-
-
-class RecommendationLog(models.Model):
-    """Log recommendations shown to users for tracking effectiveness."""
-    
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='bonus_recommendation_logs')
-    recommendation_type = models.CharField(max_length=100)
-    recommended_items = models.JSONField()
-    was_accepted = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"Recommendation - {self.recommendation_type} for {self.user.username}"
-

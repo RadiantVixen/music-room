@@ -1,8 +1,9 @@
+from api.views_playback import RoomPlaybackPauseView, RoomPlaybackPlayView, RoomPlaybackResumeView, RoomPlaybackSkipView, RoomPlaybackStateView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import BlockUserView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
+from .views import DeezerTrackSearchView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
 from .views import UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, VerifyResetCodeView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
@@ -10,7 +11,7 @@ from .extend_schema import token_refresh_schema
 
 # ─── Friends ──────────────────────────────────────────────────────────────────
 from .views_friends import (
-    FriendProfileView, SendFriendRequestView, FriendRequestDetailView,
+    SendFriendRequestView, FriendRequestDetailView,
     FriendListView, PendingFriendRequestsView, SentFriendRequestsView,
     RemoveFriendView, UserSearchView,
 )
@@ -27,15 +28,6 @@ from .views_music_prefs import MusicPreferencesView
 
 # ─── Action Logs (admin) ──────────────────────────────────────────────────────
 from .views_logs import ActionLogListView
-
-# ─── Bonus Features ───────────────────────────────────────────────────────────
-from .bonus_views import (
-    NotificationViewSet,
-    UserAnalyticsViewSet,
-    ListeningHistoryViewSet,
-    SmartPlaylistViewSet,
-    RecommendationViewSet,
-)
 
 TokenRefreshView = token_refresh_schema(TokenRefreshView)
 
@@ -71,9 +63,7 @@ urlpatterns = [
     path('friends/requests/pending/', PendingFriendRequestsView.as_view(), name='friend-requests-pending'),
     path('friends/requests/sent/', SentFriendRequestsView.as_view(), name='friend-requests-sent'),
     path('friends/<int:user_id>/', RemoveFriendView.as_view(), name='friend-remove'),
-    path('friends/profile/<int:user_id>/', FriendProfileView.as_view(), name='friend-profile'),
-    path('friends/block/<int:user_id>/', BlockUserView.as_view(), name='friend-block'),
-    
+
     # ── User search ───────────────────────────────────────────────────────────
     path('users/search/', UserSearchView.as_view(), name='user-search'),
     path('users/', UserListView.as_view(), name='user-list'),
@@ -90,17 +80,19 @@ urlpatterns = [
     path('rooms/<int:pk>/members/<int:user_id>/', KickMemberView.as_view(), name='room-kick'),
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
 
+    # ── Playback ─────────────────────────────────────────────────────────────
+    path('rooms/<int:room_id>/playback/playback/', RoomPlaybackStateView.as_view(), name='playback-state'),
+    path('rooms/<int:room_id>/playback/play/', RoomPlaybackPlayView.as_view(), name='playback-play'),
+    path('rooms/<int:room_id>/playback/pause/', RoomPlaybackPauseView.as_view(), name='playback-pause'),
+    path('rooms/<int:room_id>/playback/resume/', RoomPlaybackResumeView.as_view(), name='playback-resume'),
+    path('rooms/<int:room_id>/playback/skip/', RoomPlaybackSkipView.as_view(), name='playback-skip'),
+    
+
+    path('tracks/search/', DeezerTrackSearchView.as_view(), name='deezer-track-search'),
+
 
     # ── Admin: action logs ────────────────────────────────────────────────────
     path('admin/logs/', ActionLogListView.as_view(), name='action-logs'),
 ]
 
-# ─── Bonus Features Router ────────────────────────────────────────────────────
-router = DefaultRouter()
-router.register(r'bonus/notifications', NotificationViewSet, basename='notification')
-router.register(r'bonus/analytics', UserAnalyticsViewSet, basename='analytics')
-router.register(r'bonus/listening-history', ListeningHistoryViewSet, basename='listening-history')
-router.register(r'bonus/smart-playlists', SmartPlaylistViewSet, basename='smart-playlist')
-router.register(r'bonus/recommendations', RecommendationViewSet, basename='recommendation')
 
-urlpatterns += router.urls

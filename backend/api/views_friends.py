@@ -18,7 +18,6 @@ from .friends_schema import *
 
 from .models import CustomUser, FriendRequest, FriendRequestStatus, ActionLog
 from .serializers import (
-    FriendProfileSerializer,
     FriendRequestSerializer,
     SendFriendRequestSerializer,
     FriendRequestActionSerializer,
@@ -26,18 +25,6 @@ from .serializers import (
 )
 from .logging_utils import log_action
 
-
-class FriendProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-
-    def get(self, request, user_id):
-        user = get_object_or_404(
-            CustomUser.objects.select_related('profile', 'profile__music_preferences'),
-            pk=user_id
-        )
-        serializer = FriendProfileSerializer(user, context={'request': request})
-        return Response(serializer.data, status=200)
 @send_request_schema
 class SendFriendRequestView(APIView):
     """POST /api/friends/request/ — send a friend request to another user."""

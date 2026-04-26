@@ -28,6 +28,7 @@ ALLOWED_HOSTS = ['*']  if DEBUG else ALLOWED_HOSTS  # allow all in debug, restri
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -36,7 +37,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'channels',
     'api',
+    'events',
+    'delegation',
+    'premium',
     'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
@@ -72,6 +77,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'auth.wsgi.application'
+ASGI_APPLICATION = 'auth.asgi.application'
+
+# Channel layers — in-memory for dev, Redis for production
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(os.getenv('REDIS_HOST', 'redis'), int(os.getenv('REDIS_PORT', 6379)))],
+        },
+    } if os.getenv('REDIS_HOST') else {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # Database
@@ -164,6 +182,8 @@ REST_FRAMEWORK = {
         'register': '10/min',    # signup endpoint
         'password_reset': '5/min',  # forgot-password — very tight
     },
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
 }
 
 import os
@@ -207,6 +227,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 _cors_defaults = 'http://localhost:8080,http://localhost:8081,http://localhost:9090'
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split(',')
 CORS_ALLOW_CREDENTIALS = True
+
 
 
 google_client_id = (
@@ -258,6 +279,8 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Profile', 'description': 'Get and update the authenticated user profile'},
         {'name': 'Password', 'description': 'Change, forgot and reset password'},
         {'name': 'OAuth', 'description': 'Social login (Google / Facebook)'},
+        {'name': 'Events – Track Vote', 'description': 'Suggest tracks and vote in vote-type rooms'},
+        {'name': 'Delegation', 'description': 'Device control delegation in delegation-type rooms'},
     ],
 
     # Security scheme — tells Swagger UI to send Bearer tokens

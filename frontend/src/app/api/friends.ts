@@ -42,12 +42,17 @@ export const respondToFriendRequestRequest = async (
   return response.data;
 };
 
-export const getFriendProfileRequest = async (userId: number) => {
-  const { data } = await api.get(`/friends/profile/${userId}/`);
-  return data;
+export const getUserProfileRequest = async (userId: number | string) => {
+  const response = await api.get(`/users/${userId}/`);
+  return response.data.data ?? response.data;
 };
 
 export const blockUserRequest = async (userId: number) => {
   const { data } = await api.post(`/friends/block/${userId}/`);
   return data;
+};
+
+export const getAllUsersRequest = async () => {
+  const response = await api.get("/users/");
+  return response.data.data;
 };

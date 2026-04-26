@@ -2,7 +2,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const api = axios.create({
-  baseURL: "http://192.168.1.8:8000/api", // Your laptop IP on Wi-Fi - update if IP changes
+  baseURL: "http://localhost:8000/api",//10.0.2.2 for Android emulator
   headers: {
     "Content-Type": "application/json",
   },

@@ -10,9 +10,18 @@ services:
       - auth_pgdata:/var/lib/postgresql/data
     env_file: .env
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - transcendence
+    ports:
+      - "6380:6379"
+
   auth-service:
     depends_on:
       - auth-postgres
+      - redis
     build:
       context: .
     restart: unless-stopped
@@ -24,6 +33,9 @@ services:
       - transcendence
     env_file:
       - .env
+    command: python manage.py runserver 0.0.0.0:8000
+
+
 
 networks:
   transcendence:
@@ -31,4 +43,3 @@ networks:
 
 volumes:
   auth_pgdata:
-

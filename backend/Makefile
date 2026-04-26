@@ -7,13 +7,13 @@ COMPOSE_FILE = docker-compose.yml
 .PHONY: up
 up: build
 	@echo "Starting Docker Compose..."
-	docker compose -f $(COMPOSE_FILE) up -d
+	docker-compose -f $(COMPOSE_FILE) up -d
 
 # Build Docker Compose images
 .PHONY: build
 build:
 	@echo "Building Docker Compose images..."
-	docker compose -f $(COMPOSE_FILE) build
+	docker-compose -f $(COMPOSE_FILE) build
 
 # Stop and remove all containers, networks, volumes
 .PHONY: clean
