@@ -1,9 +1,11 @@
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import FREE_PLAYLIST_LIMIT, Playlist, PlaylistCollaborator, PlaylistTrack, PremiumSubscription
 from .permissions import IsPremiumUser
@@ -25,6 +27,8 @@ class PremiumStatusView(APIView):
     Available to all authenticated users (not just premium ones).
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'premium'
 
     def get(self, request):
         try:
@@ -52,6 +56,8 @@ class ActivatePremiumView(APIView):
     For now it is open to any authenticated user (mock activation).
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'premium'
 
     def post(self, request):
         sub, _ = PremiumSubscription.objects.get_or_create(user=request.user)
@@ -70,6 +76,8 @@ class DeactivatePremiumView(APIView):
     Cancels premium — downgrades the user back to free.
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'premium'
 
     def post(self, request):
         try:
@@ -90,6 +98,8 @@ class PlaylistListCreateView(ListCreateAPIView):
     POST /api/premium/playlists/        — create a new playlist (premium required for >3)
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'playlists'
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -133,6 +143,8 @@ class PlaylistDetailView(RetrieveUpdateDestroyAPIView):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = PlaylistSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'playlists'
 
     def get_queryset(self):
         user = self.request.user
@@ -166,6 +178,8 @@ class PlaylistTrackListCreateView(APIView):
     POST /api/premium/playlists/<playlist_id>/tracks/   — add a track
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'playlists'
 
     def _get_playlist(self, playlist_id, user):
         try:
@@ -198,11 +212,19 @@ class PlaylistTrackListCreateView(APIView):
             return Response({"detail": "This playlist is not collaborative."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = PlaylistTrackSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        print("request.data", request.data)
+        serializer.is_valid()
 
+
+        serializer.is_valid(raise_exception=True)
         # Auto-position at the end
         last_pos = playlist.tracks.count()
+        print("last_pos ", last_pos)
+        print("playlist ", playlist)
+        print("added_by ", request.user)
+        print("position  ", last_pos)
         serializer.save(playlist=playlist, added_by=request.user, position=last_pos)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -212,6 +234,8 @@ class PlaylistTrackDetailView(APIView):
     PATCH  /api/premium/playlists/<playlist_id>/tracks/<track_id>/  — reorder (position)
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'playlists'
 
     def _get_track(self, playlist_id, track_id, user):
         try:
@@ -222,8 +246,12 @@ class PlaylistTrackDetailView(APIView):
 
         is_owner = playlist.owner == user
         is_collaborator = playlist.collaborators.filter(user=user).exists()
-        if not (is_owner or is_collaborator):
-            return None, None, Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        
+        if not is_owner:
+            if not is_collaborator:
+                return None, None, Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+            if not playlist.is_collaborative:
+                return None, None, Response({"detail": "Collaboration is disabled for this playlist."}, status=status.HTTP_403_FORBIDDEN)
 
         return playlist, track, None
 
@@ -238,11 +266,41 @@ class PlaylistTrackDetailView(APIView):
         playlist, track, err = self._get_track(playlist_id, track_id, request.user)
         if err:
             return err
+        
         new_pos = request.data.get("position")
         if new_pos is None:
             return Response({"detail": "position is required."}, status=status.HTTP_400_BAD_REQUEST)
-        track.position = int(new_pos)
+        
+        new_pos = int(new_pos)
+        old_pos = track.position
+        
+        if new_pos == old_pos:
+            return Response(PlaylistTrackSerializer(track).data)
+
+        # Reordering logic: shift other tracks
+        tracks = playlist.tracks.exclude(pk=track.pk)
+        
+        if new_pos > old_pos:
+            # Moving down: shift tracks between old and new UP ( -1 )
+            tracks.filter(position__gt=old_pos, position__lte=new_pos).update(
+                position=models.F('position') - 1
+            )
+        else:
+            # Moving up: shift tracks between new and old DOWN ( +1 )
+            tracks.filter(position__gte=new_pos, position__lt=old_pos).update(
+                position=models.F('position') + 1
+            )
+            
+        track.position = new_pos
         track.save()
+        
+        # Ensure positions are always 0-indexed and sequential (cleanup)
+        all_tracks = playlist.tracks.order_by('position', 'added_at')
+        for i, t in enumerate(all_tracks):
+            if t.position != i:
+                t.position = i
+                t.save(update_fields=['position'])
+
         return Response(PlaylistTrackSerializer(track).data)
 
 
@@ -255,6 +313,8 @@ class PlaylistCollaboratorView(APIView):
     DELETE /api/premium/playlists/<playlist_id>/collaborators/<user_id>/
     """
     permission_classes = [IsAuthenticated, IsPremiumUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'premium'
 
     def _get_playlist(self, playlist_id, user):
         try:
@@ -275,9 +335,14 @@ class PlaylistCollaboratorView(APIView):
         if err:
             return err
 
-        user_id = request.data.get("user_id")
-        if not user_id:
-            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate user_id
+        try:
+            user_id = int(request.data.get("user_id"))
+        except (TypeError, ValueError):
+            return Response({"detail": "Valid user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user_id == request.user.id:
+            return Response({"detail": "You cannot add yourself as a collaborator."}, status=status.HTTP_400_BAD_REQUEST)
 
         from django.contrib.auth import get_user_model
         User = get_user_model()
@@ -288,20 +353,40 @@ class PlaylistCollaboratorView(APIView):
 
         collab, created = PlaylistCollaborator.objects.get_or_create(playlist=playlist, user=target_user)
         if not created:
-            return Response({"detail": "Already a collaborator."}, status=status.HTTP_409_CONFLICT)
+            return Response({"detail": "This user is already a collaborator."}, status=status.HTTP_409_CONFLICT)
 
         # Mark playlist as collaborative
         if not playlist.is_collaborative:
             playlist.is_collaborative = True
-            playlist.save()
+            playlist.save(update_fields=['is_collaborative', 'updated_at'])
 
         return Response(PlaylistCollaboratorSerializer(collab).data, status=status.HTTP_201_CREATED)
 
     def delete(self, request, playlist_id, user_id):
-        playlist, err = self._get_playlist(playlist_id, request.user)
-        if err:
-            return err
-        deleted, _ = PlaylistCollaborator.objects.filter(playlist=playlist, user_id=user_id).delete()
-        if not deleted:
-            return Response({"detail": "Collaborator not found."}, status=status.HTTP_404_NOT_FOUND)
+        print(f"[COLLAB] Delete Request: playlist={playlist_id}, rel_id={user_id}, user={request.user.username}")
+        
+        # user_id in the URL is the collab_id (PlaylistCollaborator PK)
+        collab_rel = get_object_or_404(PlaylistCollaborator, pk=user_id, playlist_id=playlist_id)
+        
+        is_owner = (collab_rel.playlist.owner_id == request.user.id)
+        is_self = (collab_rel.user_id == request.user.id)
+
+        if not (is_owner or is_self):
+            print(f"[COLLAB] Permission Denied for {request.user.username}")
+            return Response(
+                {"detail": "You do not have permission to remove this collaborator."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        playlist = collab_rel.playlist
+        collab_rel.delete()
+        print(f"[COLLAB] Successfully deleted record {user_id}")
+
+        # Update playlist status if it was the last collaborator
+        if not playlist.collaborators.exists():
+            print(f"[COLLAB] Removing collaborative flag from {playlist.name}")
+            playlist.is_collaborative = False
+            playlist.save(update_fields=['is_collaborative', 'updated_at'])
+
         return Response(status=status.HTTP_204_NO_CONTENT)
+

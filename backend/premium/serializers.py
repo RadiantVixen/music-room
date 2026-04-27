@@ -40,27 +40,29 @@ class PlaylistSerializer(serializers.ModelSerializer):
     tracks = PlaylistTrackSerializer(many=True, read_only=True)
     collaborators = PlaylistCollaboratorSerializer(many=True, read_only=True)
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    owner_id = serializers.IntegerField(source="owner.id", read_only=True)
     track_count = serializers.IntegerField(source="tracks.count", read_only=True)
 
     class Meta:
         model = Playlist
         fields = [
             "id", "name", "description", "cover_url", "is_collaborative",
-            "owner_username", "track_count", "tracks", "collaborators",
+            "owner_username", "owner_id", "track_count", "tracks", "collaborators",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "owner_username", "track_count", "created_at", "updated_at"]
+        read_only_fields = ["id", "owner_username", "owner_id", "track_count", "created_at", "updated_at"]
 
 
 class PlaylistListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views — no nested tracks."""
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    owner_id = serializers.IntegerField(source="owner.id", read_only=True)
     track_count = serializers.IntegerField(source="tracks.count", read_only=True)
 
     class Meta:
         model = Playlist
         fields = [
             "id", "name", "description", "cover_url", "is_collaborative",
-            "owner_username", "track_count", "created_at", "updated_at",
+            "owner_username", "owner_id", "track_count", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "owner_username", "track_count", "created_at", "updated_at"]
+        read_only_fields = ["id", "owner_username", "owner_id", "track_count", "created_at", "updated_at"]

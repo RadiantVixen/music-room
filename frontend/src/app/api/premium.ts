@@ -152,7 +152,8 @@ export const addCollaborator = async (
 
 export const removeCollaborator = async (
   playlistId: number,
-  userId: number
+  collabId: number
 ): Promise<void> => {
-  await api.delete(`/premium/playlists/${playlistId}/collaborators/${userId}/`);
+  console.log(`[API] DELETE /premium/playlists/${playlistId}/collaborators/${collabId}/`);
+  await api.delete(`/premium/playlists/${playlistId}/collaborators/${collabId}/`);
 };

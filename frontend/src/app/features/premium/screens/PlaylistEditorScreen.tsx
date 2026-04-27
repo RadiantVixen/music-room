@@ -10,14 +10,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   Switch,
+  Platform,
 } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { usePremiumStore } from "../../../store/premiumStore";
 import { useRoomsStore } from "../../../store/roomsStore";
+import { useAuthStore } from "../../../store/authStore";
 import CollaboratorsList from "../components/CollaboratorsList";
 import PremiumBadge from "../components/PremiumBadge";
 import type { RootStackParamList } from "../../../navigation/RootNavigator";
+import { usePlaybackStore, type Track as PlaybackTrack } from "../../../store/playbackStore";
+import { Ionicons } from "@expo/vector-icons";
 
 type RouteProps = RouteProp<RootStackParamList, "PlaylistEditor">;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -36,10 +40,14 @@ export default function PlaylistEditorScreen() {
     fetchPlaylistDetail,
     addTrack,
     removeTrack,
+    reorderTrack,
     updatePlaylist,
+    toggleDownload,
+    downloadProgress,
   } = usePremiumStore();
 
   const { searchResults, searchLoading, searchTracks, clearSearchResults } = useRoomsStore();
+  const { setQueue, playTrack: playLocalTrack, currentTrack, isPlaying } = usePlaybackStore();
 
   const [activeTab, setActiveTab] = useState<Tab>("tracks");
   const [searchQ, setSearchQ] = useState("");
@@ -51,18 +59,29 @@ export default function PlaylistEditorScreen() {
   const [editCollab, setEditCollab] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const { user } = useAuthStore();
+  const isOwner = selectedPlaylist?.owner_id === user?.id;
+
   useEffect(() => {
     fetchPlaylistDetail(playlistId);
+
+    // Real-time Sync: Poll for updates every 10 seconds while in editor
+    const interval = setInterval(() => {
+      console.log(`[Sync] Polling update for playlist ${playlistId}...`);
+      fetchPlaylistDetail(playlistId);
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [playlistId]);
 
   // Sync settings fields when playlist loads
   useEffect(() => {
-    if (selectedPlaylist) {
+    if (selectedPlaylist && isOwner) {
       setEditName(selectedPlaylist.name);
       setEditDesc(selectedPlaylist.description);
       setEditCollab(selectedPlaylist.is_collaborative);
     }
-  }, [selectedPlaylist?.id]);
+  }, [selectedPlaylist?.id, isOwner]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -92,25 +111,56 @@ export default function PlaylistEditorScreen() {
       });
       Alert.alert("Added!", `"${track.title}" added to playlist.`);
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.detail || "Could not add track.");
+      const msg = e?.response?.data?.detail || "Could not add track.";
+      if (Platform.OS === "web") {
+        window.alert("Error: " + msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
     }
   };
 
   const handleRemoveTrack = (trackId: number, title: string) => {
-    Alert.alert("Remove Track", `Remove "${title}" from this playlist?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await removeTrack(playlistId, trackId);
-          } catch {
-            Alert.alert("Error", "Could not remove track.");
-          }
+    const performRemove = async () => {
+      console.log(`[Editor] Removing track ${trackId} from playlist ${playlistId}`);
+      try {
+        await removeTrack(playlistId, trackId);
+      } catch (e: any) {
+        console.error("[Editor] Remove track failed:", e?.response?.data || e.message);
+        if (Platform.OS === "web") {
+          window.alert("Could not remove track.");
+        } else {
+          Alert.alert("Error", "Could not remove track.");
+        }
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Remove "${title}" from this playlist?`)) {
+        performRemove();
+      }
+    } else {
+      Alert.alert("Remove Track", `Remove "${title}" from this playlist?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: performRemove,
         },
-      },
-    ]);
+      ]);
+    }
+  };
+
+  const handleReorderTrack = async (trackId: number, currentPos: number, direction: "up" | "down") => {
+    const newPos = direction === "up" ? currentPos - 1 : currentPos + 1;
+    if (newPos < 0) return;
+    
+    console.log(`[Editor] Reordering track ${trackId} to pos ${newPos}`);
+    try {
+      await reorderTrack(playlistId, trackId, newPos);
+    } catch (e: any) {
+      console.error("[Editor] Reorder failed:", e?.response?.data || e.message);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -129,11 +179,41 @@ export default function PlaylistEditorScreen() {
     }
   };
 
+  const handlePlayPlaylist = () => {
+    if (!selectedPlaylist?.tracks?.length) return;
+    
+    const playbackTracks: PlaybackTrack[] = selectedPlaylist.tracks.map(t => ({
+      id: t.id,
+      deezerId: t.deezer_id,
+      title: t.title,
+      artist: t.artist,
+      albumArt: t.album_art,
+      audioUrl: t.audio_url,
+      duration: t.duration,
+    }));
+
+    setQueue(playbackTracks, 0);
+  };
+
+  const handlePlaySingleTrack = (track: any, index: number) => {
+    const playbackTracks: PlaybackTrack[] = (selectedPlaylist?.tracks || []).map(t => ({
+      id: t.id,
+      deezerId: t.deezer_id,
+      title: t.title,
+      artist: t.artist,
+      albumArt: t.album_art,
+      audioUrl: t.audio_url,
+      duration: t.duration,
+    }));
+
+    setQueue(playbackTracks, index);
+  };
+
   const TABS: { id: Tab; label: string }[] = [
     { id: "tracks", label: "Tracks" },
     { id: "search", label: "Add" },
-    ...(isPremium ? [{ id: "collaborators" as Tab, label: "Collab" }] : []),
-    { id: "settings", label: "Settings" },
+    ...(isOwner && isPremium ? [{ id: "collaborators" as Tab, label: "Collab" }] : []),
+    ...(isOwner ? [{ id: "settings" as Tab, label: "Settings" }] : []),
   ];
 
   if (!selectedPlaylist) {
@@ -184,6 +264,12 @@ export default function PlaylistEditorScreen() {
         {/* ── Tracks tab ── */}
         {activeTab === "tracks" && (
           <View style={styles.section}>
+            {(selectedPlaylist.tracks ?? []).length > 0 && (
+              <TouchableOpacity style={styles.playAllBtn} onPress={handlePlayPlaylist}>
+                <Ionicons name="play" size={20} color="#fff" />
+                <Text style={styles.playAllTxt}>Play All</Text>
+              </TouchableOpacity>
+            )}
             {(selectedPlaylist.tracks ?? []).length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyIcon}>🎵</Text>
@@ -195,9 +281,16 @@ export default function PlaylistEditorScreen() {
             ) : (
               (selectedPlaylist.tracks ?? []).map((track, i) => (
                 <View key={track.id} style={styles.trackRow}>
-                  <View style={styles.trackPos}>
-                    <Text style={styles.trackPosNum}>{i + 1}</Text>
-                  </View>
+                  <TouchableOpacity 
+                    style={styles.trackPos}
+                    onPress={() => handlePlaySingleTrack(track, i)}
+                  >
+                    {currentTrack?.audioUrl === track.audio_url && isPlaying ? (
+                       <ActivityIndicator size="small" color="#9956F5" />
+                    ) : (
+                      <Ionicons name="play" size={16} color="#666" />
+                    )}
+                  </TouchableOpacity>
                   <View style={styles.trackInfo}>
                     <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
                     <Text style={styles.trackArtist} numberOfLines={1}>{track.artist}</Text>
@@ -207,12 +300,47 @@ export default function PlaylistEditorScreen() {
                       {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, "0")}
                     </Text>
                   )}
+
+                  {/* Reorder controls */}
+                  <View style={styles.reorderBtns}>
+                    <TouchableOpacity 
+                      style={[styles.reorderBtn, i === 0 && styles.reorderBtnDisabled]} 
+                      disabled={i === 0}
+                      onPress={() => handleReorderTrack(track.id, i, "up")}
+                    >
+                      <Text style={styles.reorderTxt}>▲</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.reorderBtn, i === (selectedPlaylist.tracks ?? []).length - 1 && styles.reorderBtnDisabled]} 
+                      disabled={i === (selectedPlaylist.tracks ?? []).length - 1}
+                      onPress={() => handleReorderTrack(track.id, i, "down")}
+                    >
+                      <Text style={styles.reorderTxt}>▼</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <TouchableOpacity
                     style={styles.removeTrackBtn}
                     onPress={() => handleRemoveTrack(track.id, track.title)}
                   >
                     <Text style={styles.removeTrackTxt}>✕</Text>
                   </TouchableOpacity>
+
+                  {/* Download button */}
+                  {isPremium && (
+                    <TouchableOpacity
+                      style={styles.downloadBtn}
+                      onPress={() => toggleDownload(track)}
+                    >
+                      {downloadProgress[track.deezer_id || track.id] === 1 ? (
+                        <Ionicons name="cloud-done" size={18} color="#9956F5" />
+                      ) : downloadProgress[track.deezer_id || track.id] > 0 ? (
+                        <ActivityIndicator size="small" color="#9956F5" />
+                      ) : (
+                        <Ionicons name="cloud-download-outline" size={18} color="#666" />
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))
             )}
@@ -358,7 +486,32 @@ const styles = StyleSheet.create({
   trackInfo: { flex: 1 },
   trackTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
   trackArtist: { color: "#888", fontSize: 12, marginTop: 2 },
-  trackDur: { color: "#666", fontSize: 12 },
+  trackDur: { color: "#666", fontSize: 12, marginRight: 8 },
+  playAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#9956F5",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignSelf: "flex-start",
+    gap: 8,
+  },
+  playAllTxt: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+  reorderBtns: { flexDirection: "row", gap: 4 },
+  reorderBtn: {
+    width: 26,
+    height: 26,
+    backgroundColor: "#1B1328",
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#2A1F40",
+  },
+  reorderBtnDisabled: { opacity: 0.3 },
+  reorderTxt: { color: "#9956F5", fontSize: 10 },
   removeTrackBtn: {
     width: 28,
     height: 28,
@@ -368,6 +521,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   removeTrackTxt: { color: "#FF6B6B", fontSize: 11, fontWeight: "700" },
+  downloadBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
 
   searchInput: {
     backgroundColor: "#1B1328",

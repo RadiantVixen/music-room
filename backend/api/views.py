@@ -1,6 +1,6 @@
 from .deezer_service import search_deezer_tracks
 from .permissions import IsChatService
-from rest_framework import permissions, status, generics
+from rest_framework import permissions, status, generics, throttling
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, authenticate
@@ -63,6 +63,14 @@ class RegisterRateThrottle(AnonRateThrottle):
 
 class PasswordResetRateThrottle(AnonRateThrottle):
     scope = 'password_reset'
+
+# START MODIFICATION - PREMIUM BONUS (Throttling)
+class SearchRateThrottle(throttling.UserRateThrottle):
+    scope = 'search'
+
+class SocialRateThrottle(throttling.UserRateThrottle):
+    scope = 'social'
+# END MODIFICATION
 
 
 # ─── Views ───────────────────────────────────────────────────────────────────
@@ -544,6 +552,10 @@ class UserAdminDetailView(APIView):
 
 @deezer_track_search_schema
 class DeezerTrackSearchView(APIView):
+    # START MODIFICATION - PREMIUM BONUS
+    throttle_classes = [SearchRateThrottle]
+    # END MODIFICATION
+
     def get(self, request):
         query = request.query_params.get("q", "").strip()
 

@@ -67,6 +67,21 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+{/* ── START MODIFICATION - PREMIUM BONUS (Quick Access) ────────────────────── */}
+        <TouchableOpacity
+          style={styles.premiumBanner}
+          onPress={() => (navigation as any).navigate("PlaylistList")}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.premiumBannerIcon}>👑</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumBannerTitle}>My Playlists</Text>
+            <Text style={styles.premiumBannerSub}>Create, edit & collaborate on playlists</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#FFD700" />
+        </TouchableOpacity>
+{/* ── END MODIFICATION ────────────────────────────────────────────────────── */}
+
         {isLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator color="#9956F5" />
@@ -242,4 +257,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 20,
   },
+/* ── START MODIFICATION - PREMIUM BONUS ────────────────────────────────────── */
+  premiumBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1B1328",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#FFD70040",
+    gap: 12,
+  },
+  premiumBannerIcon: { fontSize: 26 },
+  premiumBannerTitle: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  premiumBannerSub: { color: "#888", fontSize: 12, marginTop: 2 },
+/* ── END MODIFICATION ──────────────────────────────────────────────────────── */
 });

@@ -6,47 +6,68 @@ type Props = {
   playlist: Playlist;
   onPress: () => void;
   onDelete?: () => void;
+  onPlay?: () => void;
   isOwner?: boolean;
 };
 
-export default function PlaylistCard({ playlist, onPress, onDelete, isOwner }: Props) {
+export default function PlaylistCard({ playlist, onPress, onDelete, onPlay, isOwner }: Props) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      {/* Cover art */}
-      <View style={styles.cover}>
-        {playlist.cover_url ? (
-          <Image source={{ uri: playlist.cover_url }} style={styles.coverImg} />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverEmoji}>🎵</Text>
-          </View>
-        )}
-        {playlist.is_collaborative && (
-          <View style={styles.collabBadge}>
-            <Text style={styles.collabText}>👥</Text>
-          </View>
-        )}
-      </View>
+    <View style={styles.card}>
+      <TouchableOpacity 
+        style={styles.cardMain} 
+        onPress={onPress} 
+        activeOpacity={0.7}
+      >
+        {/* Cover art */}
+        <View style={styles.cover}>
+          {playlist.cover_url ? (
+            <Image source={{ uri: playlist.cover_url }} style={styles.coverImg} />
+          ) : (
+            <View style={styles.coverPlaceholder}>
+              <Text style={styles.coverEmoji}>🎵</Text>
+            </View>
+          )}
+          {playlist.is_collaborative && (
+            <View style={styles.collabBadge}>
+              <Text style={styles.collabText}>👥</Text>
+            </View>
+          )}
+        </View>
 
-      {/* Info */}
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{playlist.name}</Text>
-        {!!playlist.description && (
-          <Text style={styles.desc} numberOfLines={1}>{playlist.description}</Text>
-        )}
-        <Text style={styles.meta}>
-          {playlist.track_count} track{playlist.track_count !== 1 ? "s" : ""}
-          {playlist.is_collaborative ? " · Collaborative" : ""}
-        </Text>
-      </View>
+        {/* Info */}
+        <View style={styles.info}>
+          <Text style={styles.name} numberOfLines={1}>{playlist.name}</Text>
+          {!!playlist.description && (
+            <Text style={styles.desc} numberOfLines={1}>{playlist.description}</Text>
+          )}
+          <Text style={styles.meta}>
+            {playlist.track_count} track{playlist.track_count !== 1 ? "s" : ""}
+            {playlist.is_collaborative ? " · Collaborative" : ""}
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Play button */}
+      {onPlay && (
+        <TouchableOpacity style={styles.playBtn} onPress={onPlay}>
+          <Text style={styles.playTxt}>▶</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Delete button (owner only) */}
       {isOwner && onDelete && (
-        <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity 
+          style={styles.deleteBtn} 
+          onPress={() => {
+            console.log(`[PlaylistCard] Delete clicked for ${playlist.id}`);
+            onDelete();
+          }} 
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
           <Text style={styles.deleteTxt}>✕</Text>
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -56,8 +77,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1B1328",
     borderRadius: 14,
-    padding: 12,
     marginBottom: 10,
+    overflow: "hidden",
+  },
+  cardMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
     gap: 12,
   },
   cover: {
@@ -98,4 +125,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   deleteTxt: { color: "#FF6B6B", fontSize: 12, fontWeight: "700" },
+  playBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#9956F5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  playTxt: { color: "#fff", fontSize: 18, marginLeft: 2 },
 });

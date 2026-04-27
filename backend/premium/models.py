@@ -97,7 +97,7 @@ class PlaylistTrack(models.Model):
     album = models.CharField(max_length=255, blank=True)
     album_art = models.URLField(blank=True, null=True)
     duration = models.PositiveIntegerField(null=True, blank=True, help_text="Duration in seconds")
-    audio_url = models.URLField(blank=True, null=True)
+    audio_url = models.URLField(blank=True, null=True, max_length=2000) 
     position = models.PositiveIntegerField(default=0, help_text="Order within the playlist")
     added_at = models.DateTimeField(auto_now_add=True)
 

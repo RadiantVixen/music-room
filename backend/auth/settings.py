@@ -41,7 +41,9 @@ INSTALLED_APPS = [
     'api',
     'events',
     'delegation',
+    # START MODIFICATION - PREMIUM BONUS
     'premium',
+    # END MODIFICATION
     'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
@@ -181,6 +183,12 @@ REST_FRAMEWORK = {
         'login': '10/min',       # login endpoint — tight limit
         'register': '10/min',    # signup endpoint
         'password_reset': '5/min',  # forgot-password — very tight
+        # START MODIFICATION - PREMIUM BONUS
+        'search': '30/min',      # user/track search
+        'social': '20/min',      # friend requests / room invites
+        'premium': '20/min',     # premium activation / management
+        'playlists': '100/min',  # playlist CRUD
+        # END MODIFICATION
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,

@@ -10,12 +10,15 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { usePremiumStore } from "../../../store/premiumStore";
+import { useAuthStore } from "../../../store/authStore";
 import PlaylistCard from "../components/PlaylistCard";
 import PremiumBadge from "../components/PremiumBadge";
+import { usePlaybackStore, type Track as PlaybackTrack } from "../../../store/playbackStore";
 import type { RootStackParamList } from "../../../navigation/RootNavigator";
 
 const FREE_LIMIT = 3;
@@ -32,7 +35,11 @@ export default function PlaylistListScreen() {
     fetchPremiumStatus,
     createPlaylist,
     deletePlaylist,
+    initializeOffline,
+    isOnline,
   } = usePremiumStore();
+  const { user } = useAuthStore();
+  const { setQueue } = usePlaybackStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -41,6 +48,7 @@ export default function PlaylistListScreen() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
+    initializeOffline();
     fetchPremiumStatus();
     fetchPlaylists();
   }, []);
@@ -76,20 +84,53 @@ export default function PlaylistListScreen() {
   };
 
   const handleDelete = (id: number, name: string) => {
-    Alert.alert("Delete Playlist", `Delete "${name}"? This cannot be undone.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deletePlaylist(id);
-          } catch {
-            Alert.alert("Error", "Could not delete playlist.");
-          }
+    const performDelete = async () => {
+      console.log(`[List] Deleting playlist ${id} (${name})`);
+      try {
+        await deletePlaylist(id);
+      } catch (e: any) {
+        console.error("[List] Delete failed:", e?.response?.data || e.message);
+        if (Platform.OS === "web") {
+          window.alert("Could not delete playlist.");
+        } else {
+          Alert.alert("Error", "Could not delete playlist.");
+        }
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Delete "${name}"? This cannot be undone.`)) {
+        performDelete();
+      }
+    } else {
+      Alert.alert("Delete Playlist", `Delete "${name}"? This cannot be undone.`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: performDelete,
         },
-      },
-    ]);
+      ]);
+    }
+  };
+  
+  const handlePlay = (playlist: any) => {
+    if (!playlist.tracks?.length) {
+      Alert.alert("Empty Playlist", "Add some tracks before playing.");
+      return;
+    }
+    
+    const playbackTracks: PlaybackTrack[] = playlist.tracks.map((t: any) => ({
+      id: t.id,
+      deezerId: t.deezer_id,
+      title: t.title,
+      artist: t.artist,
+      albumArt: t.album_art,
+      audioUrl: t.audio_url,
+      duration: t.duration,
+    }));
+
+    setQueue(playbackTracks, 0);
   };
 
   const canCreate = isPremium || playlists.length < FREE_LIMIT;
@@ -102,7 +143,14 @@ export default function PlaylistListScreen() {
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Text style={styles.title}>My Playlists</Text>
+          <View style={styles.header}>
+          <Text style={styles.title}>Premium Playlists</Text>
+          {!isOnline && (
+            <View style={styles.offlineBadge}>
+              <Text style={styles.offlineText}>Offline Mode</Text>
+            </View>
+          )}
+        </View>
           {isPremium && <PremiumBadge size="sm" />}
         </View>
         <TouchableOpacity
@@ -152,9 +200,10 @@ export default function PlaylistListScreen() {
           renderItem={({ item }) => (
             <PlaylistCard
               playlist={item}
-              isOwner={true}
+              isOwner={item.owner_id === user?.id}
               onPress={() => (navigation as any).navigate("PlaylistEditor", { playlistId: item.id })}
               onDelete={() => handleDelete(item.id, item.name)}
+              onPlay={() => handlePlay(item)}
             />
           )}
         />
@@ -208,6 +257,17 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 16,
     gap: 12,
+  },
+  offlineBadge: {
+    backgroundColor: "#FF9800",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  offlineText: {
+    color: "#000",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   back: { color: "#9956F5", fontSize: 15, fontWeight: "600" },
   headerTitle: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },

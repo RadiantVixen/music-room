@@ -25,7 +25,9 @@ urlpatterns = [
     path('api/', include('api.urls')),
     path('api/events/', include('events.urls')),
     path('api/delegation/', include('delegation.urls')),
+    # START MODIFICATION - PREMIUM BONUS
     path('api/premium/', include('premium.urls')),
+    # END MODIFICATION
 ]
 
 if settings.DEBUG:

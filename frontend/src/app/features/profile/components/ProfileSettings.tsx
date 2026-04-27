@@ -48,6 +48,28 @@ export default function ProfileSettings() {
         />
       </View>
 
+{/* ── START MODIFICATION - PREMIUM BONUS ────────────────────────────────────── */}
+      <Text style={styles.sectionTitle}>PREMIUM</Text>
+
+      <View style={styles.card}>
+        <SettingItem
+          icon="star"
+          title="Upgrade to Premium 👑"
+          subtitle="Playlists, collaboration & more"
+          onPress={() => navigation.navigate("PremiumGate" as never)}
+        />
+
+        <Divider />
+
+        <SettingItem
+          icon="musical-notes"
+          title="My Playlists"
+          subtitle="Create and manage your playlists"
+          onPress={() => navigation.navigate("PlaylistList" as never)}
+        />
+      </View>
+{/* ── END MODIFICATION ────────────────────────────────────────────────────── */}
+
       <Text style={styles.sectionTitle}>MUSIC SETTINGS</Text>
 
       <View style={styles.card}>

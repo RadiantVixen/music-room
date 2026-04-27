@@ -1,5 +1,6 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import { View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SplashScreen from "../features/auth/screens/SplashScreen";
 import LoginScreen from "../features/auth/screens/LoginScreen";
@@ -24,10 +25,12 @@ import RoomSettingsScreen from "../features/rooms/screens/RoomSettingsScreen";
 import RoomInvitationsScreen from "../features/rooms/screens/RoomInvitationsScreen";
 import EditMusicPreferencesScreen from "../features/profile/screens/EditMusicPreferencesScreen";
 
-// ── Premium (bonus) ──────────────────────────────────────────────────────────
+// ── START MODIFICATION - PREMIUM BONUS ──────────────────────────────────────
 import PremiumGateScreen from "../features/premium/screens/PremiumGateScreen";
 import PlaylistListScreen from "../features/premium/screens/PlaylistListScreen";
 import PlaylistEditorScreen from "../features/premium/screens/PlaylistEditorScreen";
+import MiniPlayer from "../components/MiniPlayer";
+// ── END MODIFICATION - PREMIUM BONUS ────────────────────────────────────────
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -56,10 +59,11 @@ export type RootStackParamList = {
   RoomInvitations: undefined;
   EditMusicPreferences: undefined;
 
-  // ── Premium (bonus) ────────────────────────────────────────────────────────
+// ── START MODIFICATION - PREMIUM BONUS ──────────────────────────────────────
   PremiumGate: undefined;
   PlaylistList: undefined;
   PlaylistEditor: { playlistId: number };
+// ── END MODIFICATION - PREMIUM BONUS ────────────────────────────────────────
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -99,43 +103,54 @@ const linking = {
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-return (
-  <NavigationContainer linking={linking}>
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        <>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Signup" component={SignupScreen} />
-          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-          <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
-        </>
-      ) : (
-        <>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="EditProfile" component={EditProfile} />
-          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-          <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
-          <Stack.Screen name="RoomsList" component={RoomsListScreen} />
-          <Stack.Screen name="Room" component={RoomScreen} />
+  return (
+    <NavigationContainer linking={linking}>
+{/* ── START MODIFICATION - PREMIUM BONUS (Global Player Wrapper) ────────── */}
+      <View style={{ flex: 1 }}>
+{/* ── END MODIFICATION ─────────────────────────────────────────────────── */}
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Signup" component={SignupScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+              <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="EditProfile" component={EditProfile} />
+              <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+              <Stack.Screen name="CreateRoom" component={CreateRoomScreen} />
+              <Stack.Screen name="RoomsList" component={RoomsListScreen} />
+              <Stack.Screen name="Room" component={RoomScreen} />
 
-          <Stack.Screen name="FriendsList" component={FriendsListScreen} />
-          <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
-          <Stack.Screen name="AllUsers" component={AllUsersScreen} />
-          <Stack.Screen name="SearchTracks" component={SearchTracksScreen} />
-          <Stack.Screen name="TrackDetails" component={TrackDetailsScreen} />
-          <Stack.Screen name="RoomSettings" component={RoomSettingsScreen} />
-          <Stack.Screen name="RoomInvitations" component={RoomInvitationsScreen} />
-          <Stack.Screen name="EditMusicPreferences" component={EditMusicPreferencesScreen} />
+              <Stack.Screen name="FriendsList" component={FriendsListScreen} />
+              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
+              <Stack.Screen name="AllUsers" component={AllUsersScreen} />
+              <Stack.Screen name="SearchTracks" component={SearchTracksScreen} />
+              <Stack.Screen name="TrackDetails" component={TrackDetailsScreen} />
+              <Stack.Screen name="RoomSettings" component={RoomSettingsScreen} />
+              <Stack.Screen name="RoomInvitations" component={RoomInvitationsScreen} />
+              <Stack.Screen name="EditMusicPreferences" component={EditMusicPreferencesScreen} />
 
-          {/* ── Premium (bonus) ─────────────────────────────────────────── */}
-          <Stack.Screen name="PremiumGate" component={PremiumGateScreen} />
-          <Stack.Screen name="PlaylistList" component={PlaylistListScreen} />
-          <Stack.Screen name="PlaylistEditor" component={PlaylistEditorScreen} />
-        </>
-      )}
-    </Stack.Navigator>
-  </NavigationContainer>
-);
+{/* ── START MODIFICATION - PREMIUM BONUS ────────────────────────────────────── */}
+              <Stack.Screen name="PremiumGate" component={PremiumGateScreen} />
+              <Stack.Screen name="PlaylistList" component={PlaylistListScreen} />
+              <Stack.Screen name="PlaylistEditor" component={PlaylistEditorScreen} />
+{/* ── END MODIFICATION ──────────────────────────────────────────────────────── */}
+            </>
+          )}
+        </Stack.Navigator>
+
+{/* ── START MODIFICATION - PREMIUM BONUS ────────────────────────────────────── */}
+        {isAuthenticated && <MiniPlayer />}
+{/* ── END MODIFICATION ──────────────────────────────────────────────────────── */}
+{/* ── START MODIFICATION - PREMIUM BONUS (Global Player Wrapper) ────────── */}
+      </View>
+{/* ── END MODIFICATION ─────────────────────────────────────────────────── */}
+    </NavigationContainer>
+  );
 }

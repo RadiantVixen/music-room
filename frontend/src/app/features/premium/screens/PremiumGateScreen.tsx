@@ -47,21 +47,13 @@ export default function PremiumGateScreen() {
   const navigation = useNavigation<Nav>();
   const { activatePremium } = usePremiumStore();
   const [loading, setLoading] = useState(false);
+  const [upgraded, setUpgraded] = useState(false);
 
   const handleUpgrade = async () => {
     setLoading(true);
     try {
       await activatePremium();
-      Alert.alert(
-        "🎉 Welcome to Premium!",
-        "Your account has been upgraded. Enjoy all premium features.",
-        [
-          {
-            text: "Explore Playlists",
-            onPress: () => (navigation as any).replace("PlaylistList"),
-          },
-        ]
-      );
+      setUpgraded(true);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Something went wrong.");
     } finally {
@@ -99,19 +91,40 @@ export default function PremiumGateScreen() {
         ))}
       </View>
 
+      {/* Success banner */}
+      {upgraded && (
+        <View style={styles.successBanner}>
+          <Text style={styles.successIcon}>🎉</Text>
+          <View style={styles.successText}>
+            <Text style={styles.successTitle}>You're now Premium!</Text>
+            <Text style={styles.successSub}>Your account has been upgraded successfully.</Text>
+          </View>
+        </View>
+      )}
+
       {/* CTA */}
-      <TouchableOpacity
-        style={styles.upgradeBtn}
-        onPress={handleUpgrade}
-        disabled={loading}
-        activeOpacity={0.85}
-      >
-        {loading ? (
-          <ActivityIndicator color="#1A1028" />
-        ) : (
-          <Text style={styles.upgradeTxt}>Upgrade to Premium — Free</Text>
-        )}
-      </TouchableOpacity>
+      {upgraded ? (
+        <TouchableOpacity
+          style={styles.goBtn}
+          onPress={() => (navigation as any).replace("PlaylistList")}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.goTxt}>Go to My Playlists →</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.upgradeBtn}
+          onPress={handleUpgrade}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          {loading ? (
+            <ActivityIndicator color="#1A1028" />
+          ) : (
+            <Text style={styles.upgradeTxt}>Upgrade to Premium — Free</Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.disclaimer}>
         No payment required for this demo. In production, a payment flow would be triggered here.
@@ -174,6 +187,31 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   upgradeTxt: { color: "#1A1028", fontWeight: "800", fontSize: 16 },
+
+  successBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1A2E1A",
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  successIcon: { fontSize: 28 },
+  successText: { flex: 1 },
+  successTitle: { color: "#66BB6A", fontSize: 16, fontWeight: "800" },
+  successSub: { color: "#A5D6A7", fontSize: 12, marginTop: 3 },
+
+  goBtn: {
+    backgroundColor: "#9956F5",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  goTxt: { color: "#fff", fontWeight: "800", fontSize: 16 },
 
   disclaimer: {
     color: "#555",

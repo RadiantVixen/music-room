@@ -24,12 +24,16 @@ from .serializers import (
     PublicUserSerializer,
 )
 from .logging_utils import log_action
+from .views import SocialRateThrottle, SearchRateThrottle
 
 @send_request_schema
 class SendFriendRequestView(APIView):
     """POST /api/friends/request/ — send a friend request to another user."""
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    # START MODIFICATION - PREMIUM BONUS
+    throttle_classes = [SocialRateThrottle]
+    # END MODIFICATION
 
     def post(self, request):
         serializer = SendFriendRequestSerializer(data=request.data)
@@ -188,6 +192,9 @@ class UserSearchView(APIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    # START MODIFICATION - PREMIUM BONUS
+    throttle_classes = [SearchRateThrottle]
+    # END MODIFICATION
 
     def get(self, request):
         query = request.query_params.get('q', '').strip()

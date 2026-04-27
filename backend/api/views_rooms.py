@@ -35,6 +35,7 @@ from .serializers import (
     RoomMembershipSerializer,
     RoomSerializer,
 )
+from .views import SocialRateThrottle
 
 
 def _user_can_access_room(user, room):
@@ -78,6 +79,9 @@ class RoomListCreateView(APIView):
 
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    # START MODIFICATION - PREMIUM BONUS
+    throttle_classes = [SocialRateThrottle]
+    # END MODIFICATION
 
     @extend_schema(
         tags=['Rooms'],
@@ -238,6 +242,9 @@ class InviteToRoomView(APIView):
 
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    # START MODIFICATION - PREMIUM BONUS
+    throttle_classes = [SocialRateThrottle]
+    # END MODIFICATION
 
     @extend_schema(
         tags=['Rooms'],
