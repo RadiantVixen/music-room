@@ -44,6 +44,7 @@ export default function PlaylistEditorScreen() {
     updatePlaylist,
     toggleDownload,
     downloadProgress,
+    isOnline,
   } = usePremiumStore();
 
   const { searchResults, searchLoading, searchTracks, clearSearchResults } = useRoomsStore();
@@ -64,14 +65,8 @@ export default function PlaylistEditorScreen() {
 
   useEffect(() => {
     fetchPlaylistDetail(playlistId);
-
-    // Real-time Sync: Poll for updates every 10 seconds while in editor
-    const interval = setInterval(() => {
-      console.log(`[Sync] Polling update for playlist ${playlistId}...`);
-      fetchPlaylistDetail(playlistId);
-    }, 10000);
-
-    return () => clearInterval(interval);
+    // Removed polling that was causing auto-refresh
+    return () => {};
   }, [playlistId]);
 
   // Sync settings fields when playlist loads
@@ -187,9 +182,9 @@ export default function PlaylistEditorScreen() {
       deezerId: t.deezer_id,
       title: t.title,
       artist: t.artist,
-      albumArt: t.album_art,
-      audioUrl: t.audio_url,
-      duration: t.duration,
+      albumArt: t.album_art || undefined,
+      audioUrl: t.audio_url || undefined,
+      duration: t.duration ?? undefined,
     }));
 
     setQueue(playbackTracks, 0);
@@ -201,9 +196,9 @@ export default function PlaylistEditorScreen() {
       deezerId: t.deezer_id,
       title: t.title,
       artist: t.artist,
-      albumArt: t.album_art,
-      audioUrl: t.audio_url,
-      duration: t.duration,
+      albumArt: t.album_art || undefined,
+      audioUrl: t.audio_url || undefined,
+      duration: t.duration ?? undefined,
     }));
 
     setQueue(playbackTracks, index);
@@ -330,14 +325,21 @@ export default function PlaylistEditorScreen() {
                   {isPremium && (
                     <TouchableOpacity
                       style={styles.downloadBtn}
-                      onPress={() => toggleDownload(track)}
+                      onPress={async () => {
+                        if (!isOnline) return;
+                        try {
+                          const success = await toggleDownload(track);
+                        } catch (e) {
+                          console.error("[download] error:", e);
+                        }
+                      }}
                     >
                       {downloadProgress[track.deezer_id || track.id] === 1 ? (
-                        <Ionicons name="cloud-done" size={18} color="#9956F5" />
+                        <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
                       ) : downloadProgress[track.deezer_id || track.id] > 0 ? (
                         <ActivityIndicator size="small" color="#9956F5" />
                       ) : (
-                        <Ionicons name="cloud-download-outline" size={18} color="#666" />
+                        <Ionicons name="download-outline" size={18} color="#666" />
                       )}
                     </TouchableOpacity>
                   )}

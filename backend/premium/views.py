@@ -149,7 +149,31 @@ class PlaylistDetailView(RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user = self.request.user
         collab_ids = PlaylistCollaborator.objects.filter(user=user).values_list("playlist_id", flat=True)
-        return Playlist.objects.filter(owner=user) | Playlist.objects.filter(id__in=collab_ids)
+        return (Playlist.objects.filter(owner=user) | Playlist.objects.filter(id__in=collab_ids)).prefetch_related('tracks', 'collaborators')
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Force fresh query with ordering
+        if hasattr(instance, '_prefetched_objects_cache'):
+            instance._prefetched_objects_cache = {}
+        # Get tracks with explicit ordering
+        tracks_ordered = list(instance.tracks.order_by('position', 'added_at'))
+        # Build response manually
+        data = {
+            'id': instance.id,
+            'name': instance.name,
+            'description': instance.description,
+            'cover_url': instance.cover_url,
+            'is_collaborative': instance.is_collaborative,
+            'owner_username': instance.owner.username,
+            'owner_id': instance.owner.id,
+            'track_count': len(tracks_ordered),
+            'tracks': PlaylistTrackSerializer(tracks_ordered, many=True).data,
+            'collaborators': PlaylistCollaboratorSerializer(instance.collaborators.all(), many=True).data,
+            'created_at': instance.created_at,
+            'updated_at': instance.updated_at,
+        }
+        return Response(data)
 
     def perform_destroy(self, instance):
         if instance.owner != self.request.user:
@@ -198,9 +222,12 @@ class PlaylistTrackListCreateView(APIView):
         playlist, err = self._get_playlist(playlist_id, request.user)
         if err:
             return err
-        tracks = playlist.tracks.all()
-        serializer = PlaylistTrackSerializer(tracks, many=True)
-        return Response(serializer.data)
+        tracks = playlist.tracks.order_by('position', 'added_at')
+        serialized = PlaylistTrackSerializer(tracks, many=True).data
+        print(f"[GET TRACKS] playlist={playlist.name}, count={len(serialized)}")
+        for i, t in enumerate(serialized):
+            print(f"  [{i}] {t.get('title', 'N/A')}: position={t.get('position')}")
+        return Response(serialized)
 
     def post(self, request, playlist_id):
         playlist, err = self._get_playlist(playlist_id, request.user)
@@ -274,34 +301,28 @@ class PlaylistTrackDetailView(APIView):
         new_pos = int(new_pos)
         old_pos = track.position
         
-        if new_pos == old_pos:
-            return Response(PlaylistTrackSerializer(track).data)
-
-        # Reordering logic: shift other tracks
-        tracks = playlist.tracks.exclude(pk=track.pk)
+        print(f"[PATCH reorder] track={track.title} #{track.id} from pos {old_pos} to {new_pos}")
         
-        if new_pos > old_pos:
-            # Moving down: shift tracks between old and new UP ( -1 )
-            tracks.filter(position__gt=old_pos, position__lte=new_pos).update(
-                position=models.F('position') - 1
-            )
-        else:
-            # Moving up: shift tracks between new and old DOWN ( +1 )
-            tracks.filter(position__gte=new_pos, position__lt=old_pos).update(
-                position=models.F('position') + 1
-            )
-            
-        track.position = new_pos
-        track.save()
+        # Get all tracks and reorder
+        all_tracks = list(playlist.tracks.order_by('position', 'added_at'))
         
-        # Ensure positions are always 0-indexed and sequential (cleanup)
-        all_tracks = playlist.tracks.order_by('position', 'added_at')
+        # Remove track from old position
+        all_tracks = [t for t in all_tracks if t.id != track.id]
+        
+        # Insert at new position
+        new_pos = max(0, min(new_pos, len(all_tracks)))
+        all_tracks.insert(new_pos, track)
+        
+        # Update all positions
         for i, t in enumerate(all_tracks):
-            if t.position != i:
-                t.position = i
-                t.save(update_fields=['position'])
-
-        return Response(PlaylistTrackSerializer(track).data)
+            t.position = i
+            t.save()
+        
+        # Return full updated playlist
+        from .serializers import PlaylistSerializer
+        playlist.refresh_from_db()
+        updated_tracks = list(playlist.tracks.order_by('position', 'added_at'))
+        return Response(PlaylistSerializer(playlist).data)
 
 
 # ─── Collaborators ────────────────────────────────────────────────────────────

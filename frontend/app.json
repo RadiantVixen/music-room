@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oumaiyma1001.musicroom"
+      "bundleIdentifier": "com.oumaiyma1001.musicroom",
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save downloaded music files.",
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photo library to save music."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +28,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.oumaiyma1001.musicroom"
+      "package": "com.oumaiyma1001.musicroom",
+      "permissions": [
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

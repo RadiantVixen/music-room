@@ -508,14 +508,17 @@ class UserListView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
+        query = request.query_params.get("search", "").strip()
         users = (
             CustomUser.objects
             .select_related('profile')
             .exclude(id=request.user.id)
-            .order_by('id')
         )
+        if query:
+            users = users.filter(username__icontains=query)
+        users = users.order_by('username')[:20]  # Limit results
         data = UserSerializer(users, many=True, context={'request': request}).data
-        return Response({'count': len(data), 'data': data}, status=status.HTTP_200_OK)
+        return Response({'results': data, 'count': len(data)}, status=status.HTTP_200_OK)
 
 class UserAdminDetailView(APIView):
     permission_classes = [IsAuthenticated]

@@ -41,7 +41,7 @@ class PlaylistSerializer(serializers.ModelSerializer):
     collaborators = PlaylistCollaboratorSerializer(many=True, read_only=True)
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     owner_id = serializers.IntegerField(source="owner.id", read_only=True)
-    track_count = serializers.IntegerField(source="tracks.count", read_only=True)
+    track_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Playlist
@@ -51,6 +51,14 @@ class PlaylistSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "owner_username", "owner_id", "track_count", "created_at", "updated_at"]
+
+    @property
+    def data(self):
+        # Override to manually order tracks
+        ret = super().data
+        if 'tracks' in ret and ret['tracks']:
+            ret['tracks'] = sorted(ret['tracks'], key=lambda x: (x.get('position', 0), x.get('added_at', '')))
+        return ret
 
 
 class PlaylistListSerializer(serializers.ModelSerializer):

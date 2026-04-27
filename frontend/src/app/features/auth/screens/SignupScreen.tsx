@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import axios from "axios";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -34,7 +35,32 @@ export default function SignupScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const extractApiErrorMessage = (error: unknown): string | null => {
+    if (!axios.isAxiosError(error)) return null;
+
+    if (!error.response) {
+      return "Cannot reach backend. Check API URL and backend server.";
+    }
+
+    const data = error.response.data;
+
+    if (typeof data?.detail === "string") return data.detail;
+    if (typeof data?.message === "string") return data.message;
+
+    if (data && typeof data === "object") {
+      for (const value of Object.values(data as Record<string, unknown>)) {
+        if (typeof value === "string") return value;
+        if (Array.isArray(value) && typeof value[0] === "string") {
+          return value[0];
+        }
+      }
+    }
+
+    return null;
+  };
+
   const handleSignup = async () => {
+  if (isLoading) return;
   try {
     await signup({
       full_name: fullName,
@@ -45,9 +71,14 @@ export default function SignupScreen() {
     Alert.alert("Success", "Account created successfully");
 
     // navigation.navigate("Login");
-  } catch (error: any) {
-    console.log(error?.response?.data);
-    Alert.alert("Signup failed", JSON.stringify(error?.response?.data || {}));
+  } catch (error: unknown) {
+    const apiMessage = extractApiErrorMessage(error);
+    Alert.alert(
+      "Signup failed",
+      typeof apiMessage === "string"
+        ? apiMessage
+        : "Please check your details and try again."
+    );
   }
 };
 
@@ -103,6 +134,8 @@ export default function SignupScreen() {
 
         <Button
           title="Create Account"
+          loading={isLoading}
+          disabled={isLoading}
           onPress={handleSignup}
         />
 

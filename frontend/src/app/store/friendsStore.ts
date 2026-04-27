@@ -117,8 +117,12 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   fetchFriends: async () => {
     set({ isLoading: true });
     try {
+      console.log(`[fetchFriends] Calling API...`);
       const data = await getFriendsRequest();
+      console.log(`[fetchFriends] Got data:`, data);
       set({ friends: Array.isArray(data) ? data : [] });
+    } catch (e) {
+      console.error("[fetchFriends] Error:", e);
     } finally {
       set({ isLoading: false });
     }

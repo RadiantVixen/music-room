@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ActivityIndicator, Platform } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ActivityIndicator, Platform, TextInput } from "react-native";
+import { api } from "../../../api/client";
 import { usePremiumStore } from "../../../store/premiumStore";
 import { useFriendsStore } from "../../../store/friendsStore";
 import { useAuthStore } from "../../../store/authStore";
@@ -10,17 +11,21 @@ type Props = {
 
 export default function CollaboratorsList({ playlistId }: Props) {
   const { selectedPlaylist, addCollaborator, removeCollaborator, playlistsLoading } = usePremiumStore();
-  const { friends, fetchFriends } = useFriendsStore();
+  const { friends, fetchFriends, isLoading: friendsLoading } = useFriendsStore();
   const { user } = useAuthStore();
 
   const collaborators = selectedPlaylist?.collaborators ?? [];
-  // Filter out the current user so they don't see themselves in the list
   const displayCollaborators = collaborators.filter(c => c.user_id !== user?.id);
   const collaboratorIds = new Set(collaborators.map((c) => c.user_id));
 
   useEffect(() => {
-    fetchFriends();
+    console.log(`[CollaboratorsList] Fetching friends...`);
+    fetchFriends().then(() => {
+      console.log(`[CollaboratorsList] Friends loaded:`, friends.length);
+    });
   }, []);
+
+  console.log(`[CollaboratorsList] Render: friends=${friends.length}, loading=${friendsLoading}`);
 
   const handleAdd = async (userId: number, username: string) => {
     console.log(`[Collaborators] Attempting to add user ${userId} (${username}) to playlist ${playlistId}`);
@@ -30,6 +35,24 @@ export default function CollaboratorsList({ playlistId }: Props) {
     } catch (e: any) {
       console.error("[Collaborators] Add failed:", e?.response?.data || e.message);
       Alert.alert("Error", e?.response?.data?.detail || "Could not add collaborator.");
+    }
+  };
+
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const handleSearch = async () => {
+    if (!searchQ.trim()) return;
+    setSearching(true);
+    try {
+      const res = await api.get("/users/", { params: { search: searchQ } });
+      const users = res.data?.results ?? res.data ?? [];
+      setSearchResults(users.filter((u: any) => u.id !== user?.id && !collaboratorIds.has(u.id)));
+    } catch (e) {
+      console.error("[Search] Error:", e);
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -98,15 +121,53 @@ export default function CollaboratorsList({ playlistId }: Props) {
         ))
       )}
 
-      {/* Add from friends */}
+      {/* Search users */}
       <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-        <Text style={styles.sectionTitle}>Add from Friends</Text>
-        <TouchableOpacity onPress={() => fetchFriends()}>
-          <Text style={styles.refreshTxt}>↻ Refresh</Text>
+        <Text style={styles.sectionTitle}>Search Users</Text>
+      </View>
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by username..."
+          placeholderTextColor="#555"
+          value={searchQ}
+          onChangeText={setSearchQ}
+          onSubmitEditing={handleSearch}
+        />
+        <TouchableOpacity onPress={handleSearch} disabled={searching}>
+          <Text style={styles.searchBtn}>{searching ? "..." : "Search"}</Text>
         </TouchableOpacity>
       </View>
+      {searchResults.map((u: any) => (
+        <View key={u.id} style={styles.row}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{(u.username || "?")[0].toUpperCase()}</Text>
+          </View>
+          <Text style={styles.username}>@{u.username}</Text>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => handleAdd(u.id, u.username)}
+          >
+            <Text style={styles.addTxt}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
 
-      {friends.length === 0 ? (
+      {/* Add from friends */}
+      <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+        <Text style={styles.sectionTitle}>Your Friends</Text>
+        {friendsLoading ? (
+          <ActivityIndicator size="small" color="#9956F5" />
+        ) : (
+          <TouchableOpacity onPress={() => fetchFriends()}>
+            <Text style={styles.refreshTxt}>↻</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {friendsLoading ? (
+        <Text style={styles.empty}>Loading friends...</Text>
+      ) : friends.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.empty}>No friends found.</Text>
           <Text style={styles.emptySub}>Make sure you have accepted friend requests.</Text>
@@ -145,9 +206,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
+    marginTop: 16,
   },
   sectionTitle: { color: "#fff", fontSize: 14, fontWeight: "700" },
   refreshTxt: { color: "#9956F5", fontSize: 12, fontWeight: "600" },
+  searchRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  searchInput: {
+    flex: 1,
+    backgroundColor: "#1A1A2E",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: "#fff",
+    fontSize: 13,
+  },
+  searchBtn: { color: "#9956F5", fontWeight: "600", fontSize: 13 },
   empty: { color: "#666", fontSize: 13 },
   emptyBox: { paddingTop: 10 },
   emptySub: { color: "#444", fontSize: 11, marginTop: 4 },

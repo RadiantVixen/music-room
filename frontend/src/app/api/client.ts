@@ -1,8 +1,15 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+
+const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+const fallbackBaseUrl =
+  Platform.OS === "android"
+    ? "http://10.0.2.2:8000/api"
+    : "http://localhost:8000/api";
 
 export const api = axios.create({
-  baseURL: "http://localhost:8000/api",//10.0.2.2 for Android emulator
+  baseURL: envBaseUrl || fallbackBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },

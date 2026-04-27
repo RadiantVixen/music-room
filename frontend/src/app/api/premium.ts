@@ -18,6 +18,7 @@ export type Playlist = {
   cover_url: string | null;
   is_collaborative: boolean;
   owner_username: string;
+  owner_id: number;
   track_count: number;
   tracks?: PlaylistTrack[];
   collaborators?: PlaylistCollaborator[];
@@ -130,7 +131,7 @@ export const reorderTrack = async (
   playlistId: number,
   trackId: number,
   position: number
-): Promise<PlaylistTrack> => {
+): Promise<Playlist> => {
   const res = await api.patch(`/premium/playlists/${playlistId}/tracks/${trackId}/`, { position });
   return res.data;
 };

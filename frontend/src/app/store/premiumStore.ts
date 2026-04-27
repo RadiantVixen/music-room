@@ -7,6 +7,8 @@ import {
   downloadTrackFile,
   removeDownloadedTrack,
   getLocalTrackUri,
+  saveDownloadProgress,
+  getDownloadProgress,
 } from "../offline/premiumStorage";
 import {
   getPremiumStatus as apiGetPremiumStatus,
@@ -81,7 +83,7 @@ type PremiumState = {
   ) => Promise<void>;
   removeTrack: (playlistId: number, trackId: number) => Promise<void>;
   reorderTrack: (playlistId: number, trackId: number, position: number) => Promise<void>;
-  toggleDownload: (track: PlaylistTrack) => Promise<void>;
+  toggleDownload: (track: PlaylistTrack) => Promise<boolean | undefined>;
   checkLocalTracks: (tracks: PlaylistTrack[]) => Promise<void>;
 
   // Actions — collaborators
@@ -103,7 +105,9 @@ export const usePremiumStore = create<PremiumState>((set, get) => ({
   initializeOffline: async () => {
     const cached = await getPlaylistsCache();
     const queue = await getSyncQueue();
-    set({ playlists: cached, offlineQueue: queue });
+    const dlProgress = await getDownloadProgress();
+    console.log(`[initializeOffline] Loaded download progress:`, dlProgress);
+    set({ playlists: cached, offlineQueue: queue, downloadProgress: dlProgress });
 
     if (typeof window !== "undefined") {
       window.addEventListener("online", () => {
@@ -127,12 +131,12 @@ export const usePremiumStore = create<PremiumState>((set, get) => ({
     
     for (const action of offlineQueue) {
       try {
-        if (action.type === "REMOVE_TRACK") {
-          await apiRemoveTrackFromPlaylist(action.playlistId, action.data.trackId);
-        } else if (action.type === "REORDER_TRACK") {
-          await apiReorderTrack(action.playlistId, action.data.trackId, action.data.position);
-        } else if (action.type === "ADD_TRACK") {
-          await apiAddTrackToPlaylist(action.playlistId, action.data);
+        if (action.type === "remove_track" || action.type === "REMOVE_TRACK") {
+          await apiRemoveTrackFromPlaylist(action.playlistId!, action.data!.trackId);
+        } else if (action.type === "reorder_track" || action.type === "REORDER_TRACK") {
+          await apiReorderTrack(action.playlistId!, action.data!.trackId, action.data!.position);
+        } else if (action.type === "add_track" || action.type === "ADD_TRACK") {
+          await apiAddTrackToPlaylist(action.playlistId!, action.data!);
         }
         // Remove from queue on success
         const idx = newQueue.findIndex(a => a.id === action.id);
@@ -182,67 +186,95 @@ export const usePremiumStore = create<PremiumState>((set, get) => ({
   },
 
   fetchPlaylistDetail: async (id) => {
+    console.log(`[fetchPlaylistDetail] START id=${id}`);
     set({ playlistsLoading: true });
     try {
       const playlist = await apiGetPlaylistDetail(id);
-      if (playlist.tracks) {
-        await get().checkLocalTracks(playlist.tracks);
-      }
+      console.log(`[fetchPlaylistDetail] Got playlist:`, playlist?.name);
+      console.log(`[fetchPlaylistDetail] Tracks from API:`, playlist?.tracks?.map((t: any) => `${t.title}:pos${t.position}`));
       set({ selectedPlaylist: playlist });
+      console.log(`[fetchPlaylistDetail] selectedPlaylist tracks:`, get().selectedPlaylist?.tracks?.map((t: any) => `${t.title}:pos${t.position}`));
+    } catch (e) {
+      console.error("[fetchPlaylistDetail] Error:", e);
     } finally {
       set({ playlistsLoading: false });
     }
   },
 
   checkLocalTracks: async (tracks) => {
-    const progress = { ...get().downloadProgress };
-    for (const track of tracks) {
-      const localUri = await getLocalTrackUri(track.deezer_id || track.id);
-      if (localUri) {
-        progress[track.deezer_id || track.id] = 1;
-        // Also update track in local state to use local URI
-        track.audio_url = localUri;
-      }
-    }
-    set({ downloadProgress: progress });
+    console.log(`[checkLocalTracks] START with ${tracks.length} tracks`);
+    console.log(`[checkLocalTracks] positions before:`, tracks.map(t => t.position));
+    
+    // Just log and return tracks as-is - don't modify order
+    const withPositions = tracks.map((t, i) => ({ ...t, position: i }));
+    console.log(`[checkLocalTracks] positions after:`, withPositions.map(t => t.position));
+    
+    set({ selectedPlaylist: { ...get().selectedPlaylist!, tracks: withPositions } });
   },
 
   toggleDownload: async (track) => {
     const trackId = track.deezer_id || track.id;
-    const { downloadProgress } = get();
+    console.log(`===== TOGGLE DOWNLOAD START =====`);
+    console.log(`trackId=${trackId}`);
+    console.log(`track.audio_url=`, track.audio_url);
+    const { downloadProgress, isOnline } = get();
+
+    if (!isOnline) {
+      console.log(`[toggleDownload] OFFLINE - cannot download`);
+      return false;
+    }
 
     if (downloadProgress[trackId] === 1) {
-      // Remove download
+      console.log(`Already downloaded, removing...`);
       await removeDownloadedTrack(trackId);
-      set({
-        downloadProgress: { ...downloadProgress, [trackId]: 0 },
-      });
+      downloadProgress[trackId] = 0;
+      set({ downloadProgress: { ...downloadProgress } });
+      await saveDownloadProgress(downloadProgress);
       console.log(`[Offline] Removed track ${trackId}`);
     } else {
-      // Start download
-      if (!track.audio_url) return;
-      console.log(`[Offline] Downloading track ${trackId}...`);
-      set({
-        downloadProgress: { ...downloadProgress, [trackId]: 0.1 },
-      });
+      const audioUrl = track.audio_url;
+      console.log(`audioUrl value: "${audioUrl}"`);
+      
+      if (!audioUrl) {
+        console.error(`NO AUDIO URL - cannot download`);
+        return false;
+      }
+      
+      console.log(`Starting download from ${audioUrl}...`);
+      downloadProgress[trackId] = 0.1;
+      set({ downloadProgress: { ...downloadProgress } });
 
-      const localUri = await downloadTrackFile(trackId, track.audio_url);
-      if (localUri) {
-        set({
-          downloadProgress: { ...get().downloadProgress, [trackId]: 1 },
-        });
-        // Update selected playlist tracks if active
-        const selected = get().selectedPlaylist;
-        if (selected) {
-          const updatedTracks = selected.tracks?.map(t => 
-            (t.deezer_id || t.id) === trackId ? { ...t, audio_url: localUri } : t
-          );
-          set({ selectedPlaylist: { ...selected, tracks: updatedTracks } });
+      try {
+        const localUri = await downloadTrackFile(trackId, audioUrl);
+        console.log(`Download result:`, localUri);
+        
+        if (localUri) {
+          downloadProgress[trackId] = 1;
+          set({ downloadProgress: { ...downloadProgress } });
+          await saveDownloadProgress(downloadProgress);
+          
+          const selected = get().selectedPlaylist;
+          if (selected) {
+            const updatedTracks = selected.tracks?.map(t => 
+              (t.deezer_id || t.id) === trackId ? { ...t, audio_url: localUri } : t
+            );
+            set({ selectedPlaylist: { ...selected, tracks: updatedTracks } });
+          }
+          console.log(`SUCCESS: downloaded to ${localUri}`);
+          return true;
+        } else {
+          downloadProgress[trackId] = 0;
+          set({ downloadProgress: { ...downloadProgress } });
+          await saveDownloadProgress(downloadProgress);
+          console.error(`Download returned null`);
+          return false;
         }
-      } else {
-        set({
-          downloadProgress: { ...get().downloadProgress, [trackId]: 0 },
-        });
+      } catch (err) {
+        console.error(`EXCEPTION:`, err);
+        downloadProgress[trackId] = 0;
+        set({ downloadProgress: { ...downloadProgress } });
+        await saveDownloadProgress(downloadProgress);
+        return false;
       }
     }
   },
@@ -289,7 +321,7 @@ export const usePremiumStore = create<PremiumState>((set, get) => ({
     if (!get().isOnline && get().isPremium) {
       const action: OfflineAction = {
         id: Math.random().toString(36).substr(2, 9),
-        type: "REMOVE_TRACK",
+        type: "remove_track",
         playlistId,
         data: { trackId },
         timestamp: Date.now(),
@@ -326,42 +358,52 @@ export const usePremiumStore = create<PremiumState>((set, get) => ({
   },
 
   reorderTrack: async (playlistId, trackId, position) => {
-    if (!get().isOnline && get().isPremium) {
+    const { isOnline, isPremium, offlineQueue, selectedPlaylist } = get();
+    
+    console.log(`[reorderTrack] START playlistId=${playlistId}, trackId=${trackId}, newPos=${position}`);
+    console.log(`[reorderTrack] isOnline=${isOnline}, isPremium=${isPremium}`);
+    
+    // Get current tracks and reorder locally first - ALWAYS do this
+    const tracks = [...(selectedPlaylist?.tracks ?? [])];
+    const idx = tracks.findIndex(t => t.id === trackId);
+    console.log(`[reorderTrack] Found track at idx=${idx}`);
+    
+    if (idx > -1) {
+      const [moved] = tracks.splice(idx, 1);
+      tracks.splice(position, 0, moved);
+      const reorderedTracks = tracks.map((t, i) => ({ ...t, position: i }));
+      set({ selectedPlaylist: { ...selectedPlaylist!, tracks: reorderedTracks } });
+      console.log(`[reorderTrack] Local reordered:`, reorderedTracks.map(t => `${t.title}:p${t.position}`));
+    }
+
+    // Offline: queue action
+    if (!isOnline && isPremium) {
+      console.log(`[reorderTrack] Queuing for offline`);
       const action: OfflineAction = {
         id: Math.random().toString(36).substr(2, 9),
-        type: "REORDER_TRACK",
+        type: "reorder_track",
         playlistId,
         data: { trackId, position },
         timestamp: Date.now(),
       };
-      const newQueue = [...get().offlineQueue, action];
-      set({ offlineQueue: newQueue });
-      await saveSyncQueue(newQueue);
-
-      // Optimistic UI update
-      const selected = get().selectedPlaylist;
-      if (selected?.id === playlistId) {
-        const tracks = [...(selected.tracks ?? [])];
-        const idx = tracks.findIndex(t => t.id === trackId);
-        if (idx > -1) {
-          const [moved] = tracks.splice(idx, 1);
-          tracks.splice(position, 0, { ...moved, position });
-          set({
-            selectedPlaylist: {
-              ...selected,
-              tracks: tracks.map((t, i) => ({ ...t, position: i })),
-            },
-          });
-        }
-      }
+      set({ offlineQueue: [...offlineQueue, action] });
+      await saveSyncQueue([...offlineQueue, action]);
       return;
     }
 
-    const updated = await apiReorderTrack(playlistId, trackId, position);
-    const selected = get().selectedPlaylist;
-    if (selected?.id === playlistId) {
-      // Re-fetch to be safe because backend reordering is complex
-      await get().fetchPlaylistDetail(playlistId);
+    // Online: sync to server
+    if (isOnline) {
+      console.log(`[reorderTrack] Calling API...`);
+      try {
+        const updatedPlaylist = await apiReorderTrack(playlistId, trackId, position);
+        console.log(`[reorderTrack] API success:`, updatedPlaylist?.tracks?.map(t => `${t.title}:p${t.position}`));
+        // Use returned data directly
+        if (updatedPlaylist?.tracks) {
+          set({ selectedPlaylist: updatedPlaylist });
+        }
+      } catch (e) {
+        console.error("[reorderTrack] API Error:", e);
+      }
     }
   },
 

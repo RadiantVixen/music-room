@@ -15,7 +15,7 @@ NODE_INIT := export NVM_DIR="$(NVM_DIR)" && [ -s "$(NVM_DIR)/nvm.sh" ] && . "$(N
 
 up:
 	@echo "🚀 Starting backend..."
-	$(COMPOSE) -f $(FILE) up -d --build
+	$(COMPOSE) -f $(FILE) up --build
 
 down:
 	@echo "🛑 Stopping backend..."
