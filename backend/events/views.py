@@ -17,6 +17,8 @@ from rest_framework import serializers, status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.settings import api_settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
@@ -30,8 +32,20 @@ from .serializers import TrackSerializer, TrackCreateSerializer, VoteResponseSer
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+def _is_premium_user(user):
+    if getattr(user, 'role', None) in ('STAFF', 'ADMIN'):
+        return True
+    profile = getattr(user, 'profile', None)
+    return bool(profile and getattr(profile, 'is_premium', False))
+
+
+def _require_premium(user):
+    if _is_premium_user(user):
+        return True, ''
+    return False, 'Voting is a premium feature. Upgrade to vote or suggest tracks.'
+
+
 # def _get_vote_room(room_id):
-#     """Fetch a room and verify it is a vote-type room."""
 #     room = get_object_or_404(Room, pk=room_id)
 #     if room.room_type != 'vote':
 #         return None, Response(
@@ -42,11 +56,7 @@ from .serializers import TrackSerializer, TrackCreateSerializer, VoteResponseSer
 
 def _get_vote_room(room_id):
     room = get_object_or_404(Room, pk=room_id)
-    if room.room_type != 'vote':
-        return None, Response(
-            {'detail': 'This room is not a vote-type room.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    
     return room, None
 
 def _broadcast(room_id, event_type, extra=None):
@@ -59,7 +69,10 @@ def _broadcast(room_id, event_type, extra=None):
         from asgiref.sync import async_to_sync
         channel_layer = get_channel_layer()
         if channel_layer:
-            tracks_qs = Track.objects.filter(room_id=room_id).select_related('suggested_by')
+            tracks_qs = Track.objects.filter(
+                room_id=room_id,
+                is_played=False,
+            ).select_related('suggested_by')
             tracks_data = TrackSerializer(tracks_qs, many=True).data
             message = {'type': event_type, 'tracks': tracks_data}
             if extra:
@@ -79,6 +92,13 @@ class TrackListCreateView(generics.GenericAPIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    throttle_scope = 'track_create'
+
+    def get_throttles(self):
+        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
+        if self.request.method == 'POST':
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     @extend_schema(
         tags=['Events – Track Vote'],
@@ -95,7 +115,7 @@ class TrackListCreateView(generics.GenericAPIView):
         if not allowed:
             return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
-        tracks = Track.objects.filter(room=room).annotate(
+        tracks = Track.objects.filter(room=room, is_played=False).annotate(
             _rank=Window(
                 expression=RowNumber(),
                 order_by=[F('vote_count').desc(), F('created_at').desc(), F('id').desc()]
@@ -122,6 +142,10 @@ class TrackListCreateView(generics.GenericAPIView):
         room, err = _get_vote_room(room_id)
         if err:
             return err
+
+        allowed, reason = _require_premium(request.user)
+        if not allowed:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
         user_lat = request.data.get('lat')
         user_lon = request.data.get('lon')
@@ -192,6 +216,13 @@ class TrackVoteView(APIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    throttle_scope = 'track_vote'
+
+    def get_throttles(self):
+        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
+        if self.request.method == 'POST':
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     @extend_schema(
         tags=['Events – Track Vote'],
@@ -206,6 +237,10 @@ class TrackVoteView(APIView):
         room, err = _get_vote_room(room_id)
         if err:
             return err
+
+        allowed, reason = _require_premium(request.user)
+        if not allowed:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
 
         # License check — enforced at vote time per the spec
         user_lat = request.data.get('lat')

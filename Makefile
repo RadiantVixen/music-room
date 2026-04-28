@@ -4,6 +4,8 @@
 COMPOSE := docker compose
 FILE    := docker-compose.yml
 FRONT   := ./frontend
+NVM_DIR := /goinfre/aatki/.nvm
+NODE_INIT := export NVM_DIR="$(NVM_DIR)" && [ -s "$(NVM_DIR)/nvm.sh" ] && . "$(NVM_DIR)/nvm.sh" && nvm use 20 --silent
 
 # ==========================================
 # 🐳 BACKEND
@@ -13,7 +15,7 @@ FRONT   := ./frontend
 
 up:
 	@echo "🚀 Starting backend..."
-	$(COMPOSE) -f $(FILE) up -d --build
+	$(COMPOSE) -f $(FILE) up --build
 
 down:
 	@echo "🛑 Stopping backend..."
@@ -53,15 +55,14 @@ prune:
 
 front-install:
 	@echo "📦 Installing frontend deps..."
-	cd $(FRONT) && npm install && npm audit fix
+	$(NODE_INIT) && cd $(FRONT) && npm install --legacy-peer-deps
 
 front-web: front-install
 	@echo "🌐 Starting web frontend..."
-	cd $(FRONT) && npx expo start --web
-
+	$(NODE_INIT) && cd $(FRONT) && npx expo start --web --port 8081
 front-mobile: front-install
 	@echo "📱 Starting mobile frontend..."
-	cd $(FRONT) && npx expo start --lan --clear
+	$(NODE_INIT) && cd $(FRONT) && npx expo start --lan --clear
 
 # ==========================================
 # 🚀 FULL STACK

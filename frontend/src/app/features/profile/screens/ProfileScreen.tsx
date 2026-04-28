@@ -1,23 +1,24 @@
-import { ScrollView } from "react-native"
-import { useAppNavigation } from "../../../hooks/useAppNavigation"
-import AppLayout from "../../../components/layout/AppLayout"
+import { ScrollView, useWindowDimensions } from "react-native";
+import { useAppNavigation } from "../../../hooks/useAppNavigation";
+import AppLayout from "../../../components/layout/AppLayout";
 
-import ProfileHeader from "../components/ProfileHeader"
-import ProfileStats from "../components/ProfileStats"
-import MusicPreferences from "../components/MusicPreferences"
+import ProfileHeader from "../components/ProfileHeader";
+import ProfileStats from "../components/ProfileStats";
+import MusicPreferences from "../components/MusicPreferences";
 
-import ProfileHeaderNav from "../components/ProfileHeaderNav"
-import ProfileSettings from "../components/ProfileSettings"
+import ProfileHeaderNav from "../components/ProfileHeaderNav";
+import ProfileSettings from "../components/ProfileSettings";
 
-import { useAuthStore } from "../../../store/authStore"
+import { useAuthStore } from "../../../store/authStore";
 
 export default function ProfileScreen() {
   const navigation = useAppNavigation();
   const user = useAuthStore((state) => state.user);
+  const { width: windowWidth } = useWindowDimensions();
 
   return (
     <AppLayout header={<ProfileHeaderNav />}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={windowWidth > 768}>
         <ProfileHeader
           avatar={user?.profile?.avatar}
           name={user?.first_name}
@@ -28,9 +29,12 @@ export default function ProfileScreen() {
           onSecondaryPress={() => navigation.navigate("EditProfile")}
         />
         <ProfileStats stats={user?.stats} />
-        <MusicPreferences genres={user?.music_preferences?.favorite_genres || []} />
+        <MusicPreferences
+          genres={user?.music_preferences?.favorite_genres || []}
+          onPress={() => navigation.navigate("EditMusicPreferences")}
+        />
         <ProfileSettings />
       </ScrollView>
     </AppLayout>
-  )
+  );
 }

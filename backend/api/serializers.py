@@ -204,6 +204,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'bio',
             'location',
             'provider',
+            'is_premium',
             'phone',
             'phone_verified',
             'created_at',
@@ -479,6 +480,9 @@ class PublicUserSerializer(serializers.ModelSerializer):
 # ─── Rooms ────────────────────────────────────────────────────────────────────
 
 class RoomMembershipSerializer(serializers.ModelSerializer):
+    room_id = serializers.IntegerField(source='room.id', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True)
+
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
     user_username = serializers.CharField(source='user.username', read_only=True)
@@ -487,8 +491,16 @@ class RoomMembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomMembership
         fields = [
-            'id', 'user_id', 'user_email', 'user_username',
-            'status', 'invited_by_id', 'created_at', 'updated_at',
+            'id',
+            'room_id',
+            'room_name',
+            'user_id',
+            'user_email',
+            'user_username',
+            'status',
+            'invited_by_id',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = fields
 

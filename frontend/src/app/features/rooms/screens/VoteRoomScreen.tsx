@@ -12,6 +12,7 @@ import { useRoomsStore } from "../../../store/roomsStore";
 import { useVoteRoomSocket } from "../../../services/useVoteRoomSocket";
 import { useRoomPlaybackSocket } from "../../../services/useRoomPlaybackSocket";
 import { useState } from "react";
+import { useAuthStore } from "../../../store/authStore";
 
 type VoteTab = "queue" | "suggestions";
 
@@ -29,6 +30,11 @@ export default function VoteRoomScreen({ room }: { room: any }) {
     resumePlayback,
     skipPlayback,
   } = useRoomsStore();
+  const { user } = useAuthStore();
+  const isPremiumUser =
+    user?.role === "ADMIN" ||
+    user?.role === "STAFF" ||
+    Boolean(user?.profile?.is_premium);
 
   useVoteRoomSocket(room?.id);
   useRoomPlaybackSocket(room?.id);
@@ -55,14 +61,24 @@ export default function VoteRoomScreen({ room }: { room: any }) {
 
   const nextWinningTrack = queue[0] || null;
 
-  const {
-    play,
-    pause,
-    isPlaying: localIsPlaying,
-    position,
-    duration,
-    seekTo,
-  } = useAudioPlayer(currentTrack?.audioUrl);
+  // const {
+  //   play,
+  //   pause,
+  //   isPlaying: localIsPlaying,
+  //   position,
+  //   duration,
+  //   seekTo,
+  // } = useAudioPlayer(currentTrack?.audioUrl);
+
+  const { play, pause, isPlaying: localIsPlaying, position, duration, seekTo } = useAudioPlayer(
+    currentTrack?.audioUrl,
+    {
+      onTrackEnd: async () => {
+        if (!room?.id) return;
+        await skipPlayback(room.id);
+      },
+    }
+  );
 
   const syncedTrackIdRef = useRef<string | null>(null);
   const syncedStatusRef = useRef<string | null>(null);
@@ -149,11 +165,12 @@ export default function VoteRoomScreen({ room }: { room: any }) {
           roomId={room?.id}
           queue={queue}
           isLoading={tracksLoading}
+          isPremiumUser={isPremiumUser}
         />
       )}
 
       {activeTab === "suggestions" && (
-        <SuggestionsTab roomId={room?.id} />
+        <SuggestionsTab roomId={room?.id} isPremiumUser={isPremiumUser} />
       )}
     </ScrollView>
   );

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Switch,
   Alert,
+  Platform,
 } from "react-native";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,10 +15,13 @@ import { useAppNavigation } from "../../../hooks/useAppNavigation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoomsStore } from "../../../store/roomsStore";
 import { getRoomImageFromGenre } from "../../../utils/placeholders";
+import { useAuthStore } from "../../../store/authStore";
+import { showToast } from "../../../utils/toast";
 
 export default function CreateRoomScreen() {
   const navigation = useAppNavigation();
   const { createRoom, isLoading } = useRoomsStore();
+  const user = useAuthStore((state) => state.user);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -28,6 +32,7 @@ export default function CreateRoomScreen() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [allowSuggestions, setAllowSuggestions] = useState(true);
   const [roomType, setRoomType] = useState<"vote" | "delegation">("vote");
+  const [showNearby, setShowNearby] = useState(false);
 
   const musicGenres = [
     "Pop",
@@ -60,6 +65,11 @@ export default function CreateRoomScreen() {
   };
 
   const handleCreate = async () => {
+    if (roomType === "vote" && !user?.profile?.is_premium) {
+      showToast("You must be a premium user to create Vote Rooms. Join the premium plan in your profile settings!", "error");
+      return;
+    }
+
     try {
       const payload = {
         name: name.trim(),
@@ -67,21 +77,32 @@ export default function CreateRoomScreen() {
         room_type: roomType,
         coverImage: getRoomImageFromGenre(selectedGenres),
         genres: selectedGenres,
-        visibility ,
-        ...(roomType === "vote" && { license_type: licenseType }),
+        isPublic: visibility === "public",
+        
+        ...(showNearby && visibility === "public" && {
+          geo_lat: 33.5731,
+          geo_lon: -7.5898,
+          geo_radius_meters: 1000,
+        }),
+
+        ...(roomType === "vote" && {
+          votingPermission:
+            licenseType === "default"
+              ? "everyone"
+              : licenseType === "invited"
+              ? "invited"
+              : "location",
+        }),
       };
 
       const room = await createRoom(payload);
 
-      Alert.alert("Success", "Room created successfully");
+      showToast("Room created successfully", "success");
       navigation.replace("Room", { roomId: room.id.toString() });
     } catch (error: any) {
       console.log("Create room error:", error?.response?.data || error?.message || error);
-      Alert.alert(
-        "Error",
-        error?.response?.data?.detail ||
-          "Failed to create room"
-      );
+      const errorDetail = error?.response?.data?.detail || "Failed to create room";
+      showToast(errorDetail, "error");
     }
   };
 
@@ -248,8 +269,6 @@ export default function CreateRoomScreen() {
           })}
         </View>
         {roomType === "vote" && (
-
-
         <View style={styles.settingCard}>
           <View style={{ flex: 1 }}>
             <Text style={styles.voteTitle}>Allow track suggestions</Text>
@@ -264,6 +283,22 @@ export default function CreateRoomScreen() {
             trackColor={{ true: "#22c55e" }}
           />
         </View>
+        )}
+        {visibility === "public" && (
+          <View style={styles.settingCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.voteTitle}>Show in Nearby Events</Text>
+              <Text style={styles.voteDesc}>
+                Make this public room discoverable near the demo location
+              </Text>
+            </View>
+
+            <Switch
+              value={showNearby}
+              onValueChange={setShowNearby}
+              trackColor={{ true: "#22c55e" }}
+            />
+          </View>
         )}
 
         <TouchableOpacity

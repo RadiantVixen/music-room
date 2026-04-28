@@ -80,3 +80,22 @@ export const socialLoginRequest = async (
   });
   return response.data;
 };
+
+export const updateMusicPreferencesRequest = async (data: {
+  favorite_genres: string[];
+  favorite_artists?: string[];
+  favorite_tracks?: string[];
+}) => {
+  const res = await api.put("/music-preferences/", data);
+  return res.data;
+};
+
+export const activatePremiumRequest = async () => {
+  const response = await api.post("/premium/activate/");
+  return response.data;
+};
+
+export const deactivatePremiumRequest = async () => {
+  const response = await api.post("/premium/deactivate/");
+  return response.data;
+};

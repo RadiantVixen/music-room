@@ -32,7 +32,7 @@ from .extend_schema import (
     login_schema, logout_schema, register_schema, profile_schema,
     change_password_schema, forgot_password_schema,
     deeplink_redirect_schema, reset_password_schema, verify_reset_code_schema, 
-    deezer_track_search_schema,
+    deezer_track_search_schema, activate_premium_schema, deactivate_premium_schema,
 )
 from drf_spectacular.openapi import OpenApiParameter, OpenApiResponse
 from .logging_utils import log_action
@@ -48,21 +48,7 @@ User = get_user_model()
 
 def generate_reset_code():
     return f"{random.randint(0, 999999):06d}"
-# ─── Custom throttle scopes ───────────────────────────────────────────────────
-class LoginRateThrottle(AnonRateThrottle):
-    scope = 'login'
 
-class RegisterRateThrottle(AnonRateThrottle):
-    scope = 'register'
-
-    def allow_request(self, request, view):
-        # Skip throttling for CORS preflight / HEAD to avoid blocking browsers before actual POST
-        if request.method in ('OPTIONS', 'HEAD'):
-            return True
-        return super().allow_request(request, view)
-
-class PasswordResetRateThrottle(AnonRateThrottle):
-    scope = 'password_reset'
 
 
 # ─── Views ───────────────────────────────────────────────────────────────────
@@ -70,7 +56,6 @@ class PasswordResetRateThrottle(AnonRateThrottle):
 @login_schema
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
-    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -90,7 +75,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 @register_schema
 class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -204,7 +188,6 @@ class ChangePasswordView(APIView):
 @forgot_password_schema
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
@@ -287,7 +270,6 @@ class ForgotPasswordView(APIView):
 @verify_reset_code_schema
 class VerifyResetCodeView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = VerifyResetCodeSerializer(data=request.data)
@@ -422,7 +404,6 @@ class VerifyResetCodeView(APIView):
 @reset_password_schema
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
@@ -561,3 +542,27 @@ class DeezerTrackSearchView(APIView):
                 {"detail": "Deezer search failed.", "error": str(e)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+
+@activate_premium_schema
+class ActivatePremiumView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request):
+        profile = request.user.profile
+        profile.is_premium = True
+        profile.save()
+        log_action(request, 'premium_activated', f'User {request.user.id} activated premium')
+        return Response({'message': 'Premium activated successfully.', 'is_premium': True})
+
+@deactivate_premium_schema
+class DeactivatePremiumView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request):
+        profile = request.user.profile
+        profile.is_premium = False
+        profile.save()
+        log_action(request, 'premium_deactivated', f'User {request.user.id} deactivated premium')
+        return Response({'message': 'Premium deactivated successfully.', 'is_premium': False})

@@ -34,6 +34,7 @@ class Profile(models.Model):
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=255, blank=True)
     provider = models.CharField(max_length=50, blank=True, null=True)  # 'google', 'facebook', etc.
+    is_premium = models.BooleanField(default=False)
     
     # Standard image upload for local avatars
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)

@@ -18,10 +18,13 @@ def verify_google_id_token(token):
         return None, 'Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
 
     try:
+        # Support multiple audiences (Client IDs from Web, Android, iOS)
+        audience = settings.google_allowed_client_ids if settings.google_allowed_client_ids else settings.google_client_id
+        
         idinfo = id_token.verify_oauth2_token(
             token,
             google_requests.Request(),
-            settings.google_client_id
+            audience
         )
 
         if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:

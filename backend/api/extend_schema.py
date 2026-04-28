@@ -290,3 +290,25 @@ deezer_track_search_schema = extend_schema(
             502: OpenApiResponse(description="Deezer search failed."),
         },
     )
+
+activate_premium_schema = extend_schema(
+    tags=['Premium'],
+    summary='Activate Premium status',
+    description='Sets the `is_premium` flag to `True` for the authenticated user\'s profile.',
+    request=None,
+    responses={
+        200: OpenApiResponse(description='Premium activated successfully'),
+        401: OpenApiResponse(description='Unauthorized'),
+    },
+)
+
+deactivate_premium_schema = extend_schema(
+    tags=['Premium'],
+    summary='Deactivate Premium status',
+    description='Sets the `is_premium` flag to `False` for the authenticated user\'s profile.',
+    request=None,
+    responses={
+        200: OpenApiResponse(description='Premium deactivated successfully'),
+        401: OpenApiResponse(description='Unauthorized'),
+    },
+)

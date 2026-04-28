@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import axios from "axios";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -36,7 +35,6 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleSignup = async () => {
-  if (isLoading) return;
   try {
     await signup({
       full_name: fullName,
@@ -47,25 +45,9 @@ export default function SignupScreen() {
     Alert.alert("Success", "Account created successfully");
 
     // navigation.navigate("Login");
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error) && error.response?.status === 429) {
-      Alert.alert(
-        "Too many attempts",
-        "You’ve made too many signup attempts. Please wait a minute and try again."
-      );
-      return;
-    }
-
-    const apiMessage = axios.isAxiosError(error)
-      ? error.response?.data?.detail || error.response?.data?.message
-      : null;
-
-    Alert.alert(
-      "Signup failed",
-      typeof apiMessage === "string"
-        ? apiMessage
-        : "Please check your details and try again."
-    );
+  } catch (error: any) {
+    console.log(error?.response?.data);
+    Alert.alert("Signup failed", JSON.stringify(error?.response?.data || {}));
   }
 };
 
@@ -121,8 +103,6 @@ export default function SignupScreen() {
 
         <Button
           title="Create Account"
-          loading={isLoading}
-          disabled={isLoading}
           onPress={handleSignup}
         />
 

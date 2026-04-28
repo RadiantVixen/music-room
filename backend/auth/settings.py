@@ -90,6 +90,28 @@ CHANNEL_LAYERS = {
     }
 }
 
+# Cache (used by DRF throttling). Use Redis when available for shared limits.
+if os.getenv('REDIS_HOST'):
+    _redis_host = os.getenv('REDIS_HOST', 'redis')
+    _redis_port = int(os.getenv('REDIS_PORT', 6379))
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': f"redis://{_redis_host}:{_redis_port}/1",
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            },
+            'KEY_PREFIX': 'music-room',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'music-room-locmem',
+        }
+    }
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -175,15 +197,13 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '60/min',        # unauthenticated users
-        'user': '300/min',       # authenticated users
-        'login': '10/min',       # login endpoint — tight limit
-        'register': os.getenv('REGISTER_THROTTLE_RATE', '30/min' if DEBUG else '10/min'),    # signup endpoint
-        'password_reset': '5/min',  # forgot-password — very tight
+        'anon': '10/min',   
+        'user': '150/min',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
 }
+
 
 import os
 
@@ -228,11 +248,16 @@ CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', _cors_defaults).split('
 CORS_ALLOW_CREDENTIALS = True
 
 
+
 google_client_id = (
     os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     or os.getenv("GOOGLE_CLIENT_ID")
     or ""
 )
+_allowed_ids = os.getenv("GOOGLE_OAUTH_CLIENT_IDS", "")
+google_allowed_client_ids = [id.strip() for id in _allowed_ids.split(",") if id.strip()]
+if google_client_id and google_client_id not in google_allowed_client_ids:
+    google_allowed_client_ids.append(google_client_id)
 google_client_secret = (
     os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
     or os.getenv("GOOGLE_CLIENT_SECRET")

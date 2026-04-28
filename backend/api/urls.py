@@ -3,7 +3,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import DeezerTrackSearchView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, UserListView, UserAdminDetailView
+from .views import (
+    DeezerTrackSearchView, UserDetailView, ChangePasswordView, CustomTokenObtainPairView, 
+    UserListView, UserAdminDetailView, ActivatePremiumView, DeactivatePremiumView
+)
 from .views import UserRegistrationView, ForgotPasswordView, ResetPasswordView, LogoutView, VerifyResetCodeView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .oauth import SocialLoginView
@@ -81,7 +84,7 @@ urlpatterns = [
     path('rooms/<int:pk>/leave/', LeaveRoomView.as_view(), name='room-leave'),
 
     # ── Playback ─────────────────────────────────────────────────────────────
-    path('rooms/<int:room_id>/playback/playback/', RoomPlaybackStateView.as_view(), name='playback-state'),
+    path('rooms/<int:room_id>/playback/', RoomPlaybackStateView.as_view(), name='playback-state'),
     path('rooms/<int:room_id>/playback/play/', RoomPlaybackPlayView.as_view(), name='playback-play'),
     path('rooms/<int:room_id>/playback/pause/', RoomPlaybackPauseView.as_view(), name='playback-pause'),
     path('rooms/<int:room_id>/playback/resume/', RoomPlaybackResumeView.as_view(), name='playback-resume'),
@@ -90,6 +93,10 @@ urlpatterns = [
 
     path('tracks/search/', DeezerTrackSearchView.as_view(), name='deezer-track-search'),
 
+
+    # ── Premium ───────────────────────────────────────────────────────────────
+    path('premium/activate/', ActivatePremiumView.as_view(), name='premium-activate'),
+    path('premium/deactivate/', DeactivatePremiumView.as_view(), name='premium-deactivate'),
 
     # ── Admin: action logs ────────────────────────────────────────────────────
     path('admin/logs/', ActionLogListView.as_view(), name='action-logs'),

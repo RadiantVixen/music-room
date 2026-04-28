@@ -32,6 +32,8 @@ export default function ControllersTab({
   }, [devices]);
 
   const handleDelegate = async (friendId: number) => {
+    console.log("Delegating control to friend ID:", friendId);
+    console.log("Current control entry:", controlEntry);
     if (!controlEntry) return;
 
     try {
@@ -81,7 +83,7 @@ export default function ControllersTab({
         <Text style={styles.title}>Current Controllers</Text>
 
         <Text style={styles.text}>
-          Owner: {controlEntry?.owner_username || "Unknown"}
+          Owner: {controlEntry?.owner_username || "Room owner"}
         </Text>
 
         <Text style={styles.text}>

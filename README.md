@@ -13,6 +13,9 @@ Ensure you have a `.env` file in the root directory with the following variables
 - `POSTGRES_PASSWORD`
 - `DJANGO_SECRET_KEY`
 - `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` (for password resets)
+Optional but recommended for shared rate limiting:
+- `REDIS_HOST=redis`
+- `REDIS_PORT=6379`
 
 ### 2. Launch Services
 ```bash
@@ -39,6 +42,7 @@ Designed for live events where users suggest and vote on music.
 - **Concurrency**: Uses atomic `F()` increments to handle thousands of concurrent votes without row-locking bottlenecks.
 - **Ranking**: Real-time deterministic ranking using database Window functions (SQL `RowNumber()`).
 - **Idempotency**: Prevents double-voting via database-level unique constraints.
+- **Premium**: Creating tracks and voting are premium-only (read access remains available).
 
 ### 2. Playlists (Collaborative Editing)
 A real-time shared playlist editor with strict ordering.
@@ -54,6 +58,9 @@ Allows users to securely "delegate" control of their physical music devices to f
 Provides high-speed updates for all services.
 - **Auth**: Custom `JWTAuthMiddleware` validates access tokens passed in the query string (`?token=...`).
 - **Geo-fencing**: Enforced at the REST layer for mutations, ensuring long-lived WebSocket read sessions remain efficient.
+
+### 5. Rate Limiting
+All REST endpoints are protected by DRF throttles (per-user and per-IP). Auth endpoints (login/register/password reset) have tighter limits. For consistent throttling across multiple workers, configure Redis caching via `REDIS_HOST` / `REDIS_PORT`.
 
 ---
 

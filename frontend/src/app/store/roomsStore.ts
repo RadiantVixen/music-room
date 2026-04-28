@@ -23,7 +23,13 @@ import {
   pauseRoomPlaybackRequest,
   getRoomPlaybackStateRequest,
   playRoomPlaybackRequest,
-} from "../api/rooms";
+  inviteToRoomRequest,
+  leaveRoomRequest,
+  respondToRoomInvitationRequest,
+  getNearbyDemoRoomsRequest,
+}
+
+from "../api/rooms";
 
 type Track = {
   id: string;
@@ -128,6 +134,18 @@ type RoomsState = {
   setRoomTracksFromSocket: (tracks: Track[]) => void;
   setDelegationDevicesFromSocket: (devices: DelegationDevice[]) => void;
   upsertDelegationDeviceFromSocket: (device: DelegationDevice) => void;
+
+  inviteToRoom: (roomId: number | string, userId: number) => Promise<void>;
+  leaveRoom: (roomId: number | string) => Promise<void>;
+
+  nearbyRooms: Room[];
+  fetchNearbyDemoRooms: () => Promise<void>;
+
+
+  respondToInvitation: (
+    roomId: number | string,
+    action: "accept" | "decline"
+  ) => Promise<void>;
 
   voteTrack: (
     roomId: number | string,
@@ -477,5 +495,43 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
   },
   clearDelegationDevices: () => set({ delegationDevices: [] }),
 
+  inviteToRoom: async (roomId, userId) => {
+    await inviteToRoomRequest(roomId, userId);
+  },
+
+  leaveRoom: async (roomId) => {
+    await leaveRoomRequest(roomId);
+
+    set({
+      rooms: get().rooms.filter((r) => r.id !== Number(roomId)),
+      myRooms: get().myRooms.filter((r) => r.id !== Number(roomId)),
+      selectedRoom:
+        get().selectedRoom?.id === Number(roomId) ? null : get().selectedRoom,
+    });
+  },
+  respondToInvitation: async (roomId, action) => {
+    await respondToRoomInvitationRequest(roomId, action);
+
+    set({
+      invitations: get().invitations.filter(
+        (item: any) => String(item.room_id || item.room?.id) !== String(roomId)
+      ),
+    });
+
+    if (action === "accept") {
+      await get().fetchMyRooms();
+    }
+  },
+  
+  nearbyRooms: [],
+  fetchNearbyDemoRooms: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await getNearbyDemoRoomsRequest();
+      set({ nearbyRooms: data });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
 }));

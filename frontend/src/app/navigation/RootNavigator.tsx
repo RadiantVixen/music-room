@@ -18,6 +18,11 @@ import ChangePasswordScreen from "../features/profile/components/ChangePasswordS
 import FriendsListScreen from "../features/friends/screens/FriendsListScreen";
 import FriendProfileScreen from "../features/friends/screens/FriendProfileScreen";
 import AllUsersScreen from "../features/friends/screens/AllUsersScreen";
+import SearchTracksScreen from "../features/search/screens/SearchTracksScreen";
+import TrackDetailsScreen from "../features/search/screens/TrackDetailsScreen";
+import RoomSettingsScreen from "../features/rooms/screens/RoomSettingsScreen";
+import RoomInvitationsScreen from "../features/rooms/screens/RoomInvitationsScreen";
+import EditMusicPreferencesScreen from "../features/profile/screens/EditMusicPreferencesScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -39,15 +44,53 @@ export type RootStackParamList = {
   FriendsList: undefined;
   FriendProfile: { userId: number };
   AllUsers: undefined;
+
+  SearchTracks: undefined;
+  TrackDetails: { track: any };
+  RoomSettings: { roomId: string };
+  RoomInvitations: undefined;
+  EditMusicPreferences: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const linking = {
+  prefixes: ['http://localhost:8081', 'musicroom://'],
+  config: {
+    screens: {
+      Login: 'login',
+      Signup: 'signup',
+      ForgotPassword: 'forgot-password',
+      ResetPassword: 'reset-password/:resetToken',
+      VerifyEmail: 'verify-email',
+
+      Home: '',
+      Profile: 'profile/:userId',
+      EditProfile: 'edit-profile',
+      ChangePassword: 'change-password',
+      
+      CreateRoom: 'create-room',
+      RoomsList: 'rooms',
+      Room: 'room/:roomId',
+      RoomSettings: 'room/:roomId/settings',
+      RoomInvitations: 'invitations',
+      
+      FriendsList: 'friends',
+      FriendProfile: 'user/:userId',
+      AllUsers: 'users',
+
+      SearchTracks: 'search',
+      TrackDetails: 'track',
+      EditMusicPreferences: 'music-preferences',
+    },
+  },
+};
 
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
 return (
-  <NavigationContainer>
+  <NavigationContainer linking={linking}>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <>
@@ -70,6 +113,11 @@ return (
           <Stack.Screen name="FriendsList" component={FriendsListScreen} />
           <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
           <Stack.Screen name="AllUsers" component={AllUsersScreen} />
+          <Stack.Screen name="SearchTracks" component={SearchTracksScreen} />
+          <Stack.Screen name="TrackDetails" component={TrackDetailsScreen} />
+          <Stack.Screen name="RoomSettings" component={RoomSettingsScreen} />
+          <Stack.Screen name="RoomInvitations" component={RoomInvitationsScreen} />
+          <Stack.Screen name="EditMusicPreferences" component={EditMusicPreferencesScreen} />
         </>
       )}
     </Stack.Navigator>

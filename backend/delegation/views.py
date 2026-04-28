@@ -22,6 +22,8 @@ from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.settings import api_settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
@@ -79,6 +81,13 @@ class DeviceListCreateView(generics.GenericAPIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    throttle_scope = 'device_register'
+
+    def get_throttles(self):
+        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
+        if self.request.method == 'POST':
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     @extend_schema(
         tags=['Delegation'],
@@ -298,6 +307,13 @@ class ControlActionView(APIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
+    throttle_scope = 'delegation_control'
+
+    def get_throttles(self):
+        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
+        if self.request.method == 'POST':
+            throttles.append(ScopedRateThrottle())
+        return throttles
 
     @extend_schema(
         tags=['Delegation'],

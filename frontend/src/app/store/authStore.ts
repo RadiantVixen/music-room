@@ -12,6 +12,9 @@ import {
   socialLoginRequest,
   updateMeRequest,
   changePasswordRequest,
+  updateMusicPreferencesRequest,
+  activatePremiumRequest,
+  deactivatePremiumRequest,
 } from "../api/auth";
 
 type User = {
@@ -27,6 +30,7 @@ type User = {
     provider: string | null;
     phone: string | null;
     phone_verified: boolean;
+    is_premium?: boolean;
     created_at: string;
     updated_at: string;
   } | null;
@@ -62,6 +66,10 @@ type AuthState = {
   restoreSession: () => Promise<void>;
   setUser: (user: User | null) => void;
 
+  updateMusicPreferences: (data: {
+    favorite_genres: string[];
+  }) => Promise<void>;
+
   updateMe: (data: UpdateProfilePayload) => Promise<User>;
   refreshMe: () => Promise<User>;
   forgotPassword: (email: string) => Promise<any>;
@@ -72,6 +80,8 @@ type AuthState = {
     confirm_password: string
   ) => Promise<any>;
   socialLogin: (provider: "google" | "facebook", token: string) => Promise<any>;
+  activatePremium: () => Promise<void>;
+  deactivatePremium: () => Promise<void>;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -289,6 +299,39 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       console.log("Social login error:", error);
       throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  updateMusicPreferences: async (data) => {
+    set({ isLoading: true });
+
+    try {
+      await updateMusicPreferencesRequest(data);
+
+      // 🔥 refresh user after update
+      const user = await getMeRequest();
+      set({ user });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  activatePremium: async () => {
+    set({ isLoading: true });
+    try {
+      await activatePremiumRequest();
+      const user = await getMeRequest();
+      set({ user });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  deactivatePremium: async () => {
+    set({ isLoading: true });
+    try {
+      await deactivatePremiumRequest();
+      const user = await getMeRequest();
+      set({ user });
     } finally {
       set({ isLoading: false });
     }

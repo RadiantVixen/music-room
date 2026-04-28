@@ -55,12 +55,23 @@ export default function LoginScreen() {
   };
 
   const socialLogin = useAuthStore((state) => state.socialLogin);
-    const redirectUri = AuthSession.makeRedirectUri({
+  
+  const googleWebClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const googleExtraIds = (process.env.GOOGLE_OAUTH_CLIENT_IDS || "").split(",");
+  const googleAndroidClientId = googleExtraIds[0]?.strip?.() || googleExtraIds[0];
+  const googleIosClientId = googleExtraIds[1]?.strip?.() || googleExtraIds[1];
+
+  const isGoogleConfigured = !!googleWebClientId;
+  
+  const redirectUri = AuthSession.makeRedirectUri({
     scheme: "musicroom",
     path: "redirect",
   });
+  
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
+    clientId: googleWebClientId || "placeholder-web-client-id",
+    androidClientId: googleAndroidClientId,
+    iosClientId: googleIosClientId,
     redirectUri,
   });
 
@@ -75,6 +86,13 @@ export default function LoginScreen() {
   }, [response]);
 
   const handleGoogleLogin = () => {
+    if (!isGoogleConfigured) {
+      Alert.alert(
+        "Google Login Not Configured",
+        "Please set up GOOGLE_OAUTH_CLIENT_ID in your .env file."
+      );
+      return;
+    }
     promptAsync(); // 👈 triggers Google popup
   };
 
@@ -133,6 +151,19 @@ export default function LoginScreen() {
 
       </View>
 
+      {/* Footer - Sign Up Link */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          Don't have an account?
+        </Text>
+
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Signup")}
+        >
+          <Text style={styles.signupText}> Sign Up</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.line} />
@@ -148,25 +179,13 @@ export default function LoginScreen() {
           title="Google"
           icon="google"
           onPress={handleGoogleLogin}
+          disabled={!isGoogleConfigured}
         />
         <SocialButton
           title="Facebook"
           icon="facebook"
           // onPress={handleFacebookLogin}
         />
-      </View>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Don't have an account?
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => navigation.navigate("Signup")}
-        >
-          <Text style={styles.signupText}> Sign Up</Text>
-        </TouchableOpacity>
       </View>
 
     </AuthLayout>

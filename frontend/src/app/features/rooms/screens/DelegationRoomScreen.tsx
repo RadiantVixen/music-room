@@ -33,32 +33,8 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
     pausePlayback,
     resumePlayback,
     skipPlayback,
+    registerDelegationDevice
   } = useRoomsStore();
-
-  useDelegationRoomSocket(room?.id);
-  useRoomPlaybackSocket(room?.id);
-
-  useEffect(() => {
-    if (room?.id) {
-      fetchRoomTracks(room.id);
-      fetchDelegationDevices(room.id);
-      fetchPlaybackState(room.id);
-    }
-  }, [
-    room?.id,
-    fetchRoomTracks,
-    fetchDelegationDevices,
-    fetchPlaybackState,
-  ]);
-
-  const currentTrack = playbackState?.current_track || null;
-  const backendIsPlaying = playbackState?.status === "playing";
-
-  const queue = useMemo(() => {
-    return roomTracks.filter(
-      (track) => String(track.id) !== String(currentTrack?.id)
-    );
-  }, [roomTracks, currentTrack?.id]);
 
   const roomControlEntry = useMemo(() => {
     if (!delegationDevices?.length) return null;
@@ -73,27 +49,69 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
   }, [delegationDevices, room?.owner?.id, room?.host?.id, user?.id]);
 
   const isOwner = useMemo(() => {
-    if (!roomControlEntry || !user?.id) return false;
-    return String(roomControlEntry.owner_id) === String(user.id);
-  }, [roomControlEntry, user?.id]);
-
-  const canControl = useMemo(() => {
-    if (!roomControlEntry || !user?.id) return false;
+    if (!user?.id) return false;
 
     return (
-      String(roomControlEntry.owner_id) === String(user.id) ||
-      String(roomControlEntry.delegated_to_id) === String(user.id)
+      String(room?.host?.id) === String(user.id) ||
+      String(room?.owner?.id) === String(user.id) ||
+      String(roomControlEntry?.owner_id) === String(user.id)
     );
-  }, [roomControlEntry, user?.id]);
+  }, [room?.host?.id, room?.owner?.id, roomControlEntry?.owner_id, user?.id]);
 
-  const {
-    play,
-    pause,
-    isPlaying: localIsPlaying,
-    position,
-    duration,
-    seekTo,
-  } = useAudioPlayer(currentTrack?.audioUrl);
+
+  useDelegationRoomSocket(room?.id);
+  useRoomPlaybackSocket(room?.id);
+
+  useEffect(() => {
+    if (!room?.id || !user?.id) return;
+    if (!isOwner) return;
+    if (delegationDevices.length > 0) return;
+
+    registerDelegationDevice(room.id, {
+      device_identifier: `room-${room.id}-owner-${user.id}`,
+      device_name: `${user.username || "Owner"}'s controller`,
+    }).then(() => {
+      fetchDelegationDevices(room.id);
+    });
+  }, [
+    room?.id,
+    user?.id,
+    user?.username,
+    isOwner,
+    delegationDevices.length,
+    registerDelegationDevice,
+    fetchDelegationDevices,
+  ]);
+
+  const currentTrack = playbackState?.current_track || null;
+  const backendIsPlaying = playbackState?.status === "playing";
+
+  const queue = useMemo(() => {
+    return roomTracks.filter(
+      (track) => String(track.id) !== String(currentTrack?.id)
+    );
+  }, [roomTracks, currentTrack?.id]);
+
+  
+  
+  const canControl = useMemo(() => {
+    if (!user?.id) return false;
+
+    if (isOwner) return true;
+
+    return String(roomControlEntry?.delegated_to_id) === String(user.id);
+  }, [isOwner, roomControlEntry?.delegated_to_id, user?.id]);
+
+
+  const { play, pause, isPlaying, position, duration, seekTo, isPlaying: localIsPlaying, } = useAudioPlayer(
+    currentTrack?.audioUrl,
+    {
+      onTrackEnd: async () => {
+        if (!room?.id) return;
+        await skipPlayback(room.id);
+      },
+    }
+  );
 
   const syncedTrackIdRef = useRef<string | null>(null);
   const syncedStatusRef = useRef<string | null>(null);

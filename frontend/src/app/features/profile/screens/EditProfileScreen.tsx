@@ -1,4 +1,4 @@
-import { ScrollView, Alert } from "react-native";
+import { ScrollView, Alert, useWindowDimensions } from "react-native";
 import { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 import EditProfileHeader from "../components/EditProfileHeader";
@@ -13,6 +13,7 @@ import { useAuthStore } from "../../../store/authStore";
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const user = useAuthStore((state) => state.user);
+  const { width: windowWidth } = useWindowDimensions();
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -33,7 +34,6 @@ export default function EditProfileScreen() {
 
       // optional:
       navigation.goBack();
-
     } catch (e) {
       console.log(e);
       Alert.alert("Error", "Failed to update profile");
@@ -52,7 +52,7 @@ export default function EditProfileScreen() {
   return (
     <AppLayout header={<EditProfileHeader />}>
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={windowWidth > 768}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         <ProfileAvatarEditor avatar={user?.profile?.avatar} />

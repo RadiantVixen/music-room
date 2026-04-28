@@ -1,27 +1,38 @@
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../../store/authStore";
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
+import { showToast } from "../../../utils/toast";
 
 export default function ProfileSettings() {
   const logout = useAuthStore((state) => state.logout);
   const navigation = useAppNavigation();
+  const isPremium = useAuthStore((state) => state.user?.profile?.is_premium);
+  const activatePremium = useAuthStore((state) => state.activatePremium);
+  const deactivatePremium = useAuthStore((state) => state.deactivatePremium);
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Log out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
+  const handleLogout = async () => {
+    await logout();
+
+    // Reset navigation stack after logout
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Login" as never }],
+    });
+  };
+
+  const handlePremiumToggle = async () => {
+    try {
+      if (isPremium) {
+        await deactivatePremium();
+        showToast("Premium deactivated.", "success");
+      } else {
+        await activatePremium();
+        showToast("Welcome to Premium!", "success");
+      }
+    } catch (error) {
+      showToast("Action failed.", "error");
+    }
   };
 
   return (
@@ -29,6 +40,15 @@ export default function ProfileSettings() {
       <Text style={styles.sectionTitle}>ACCOUNT</Text>
 
       <View style={styles.card}>
+        <SettingItem
+          icon="star-outline"
+          title={isPremium ? "Deactivate Premium" : "Activate Premium"}
+          subtitle={isPremium ? "Status: ACTIVE" : "Get exclusive features"}
+          onPress={handlePremiumToggle}
+        />
+
+        <Divider />
+
         <SettingItem
           icon="person-outline"
           title="Personal Info"

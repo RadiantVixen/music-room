@@ -202,3 +202,8 @@ export const skipRoomPlaybackRequest = async (roomId: number | string) => {
   const { data } = await api.post(`/rooms/${roomId}/playback/skip/`);
   return data;
 };
+
+export const getNearbyDemoRoomsRequest = async () => {
+  const { data } = await api.get("/rooms/nearby/");
+  return data;
+};

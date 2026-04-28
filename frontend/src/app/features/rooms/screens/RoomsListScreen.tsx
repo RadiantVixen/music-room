@@ -5,14 +5,21 @@ import FeaturedRoomCard from "../../home/components/FeaturedRoomCard";
 import AppLayout from "../../../components/layout/AppLayout";
 import RoomsListHeader from "../components/RoomsListHeader";
 import { useRoomsStore } from "../../../store/roomsStore";
+import { useAuthStore } from "../../../store/authStore";
 
 export default function JoinRoomScreen() {
   const navigation = useAppNavigation();
   const { rooms, fetchRooms, isLoading } = useRoomsStore();
+  const isPremiumUser = useAuthStore((state) => state.user?.profile?.is_premium);
 
   useEffect(() => {
     fetchRooms();
   }, []);
+
+  const filteredRooms = rooms.filter((room) => {
+    if (room.room_type === "vote" && !isPremiumUser) return false;
+    return true;
+  });
 
   const handleJoin = (room: any) => {
     navigation.navigate("Room", { roomId: room.id });
@@ -23,11 +30,11 @@ export default function JoinRoomScreen() {
       <View style={styles.container}>
         {isLoading ? (
           <Text style={styles.empty}>Loading rooms...</Text>
-        ) : rooms.length === 0 ? (
+        ) : filteredRooms.length === 0 ? (
           <Text style={styles.empty}>No rooms available</Text>
         ) : (
           <FlatList
-            data={rooms}
+            data={filteredRooms}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <FeaturedRoomCard

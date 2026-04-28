@@ -86,11 +86,22 @@ class RoomListCreateView(APIView):
     )
     def get(self, request):
         room_type = request.query_params.get('type')
+        
+        # Rooms visibility logic
         qs = Room.objects.filter(
             Q(visibility=RoomVisibility.PUBLIC)
             | Q(owner=request.user)
             | Q(memberships__user=request.user, memberships__status='accepted')
         ).distinct().select_related('owner')
+
+        # 1. Premium filtering: Non-premium users can't see public Vote Rooms
+        is_premium = getattr(request.user.profile, 'is_premium', False)
+        if not is_premium:
+            qs = qs.exclude(
+                Q(room_type='vote') & 
+                ~Q(owner=request.user) & 
+                ~Q(memberships__user=request.user, memberships__status='accepted')
+            )
 
         if room_type:
             qs = qs.filter(room_type=room_type)
@@ -105,6 +116,15 @@ class RoomListCreateView(APIView):
         responses={201: RoomSerializer},
     )
     def post(self, request):
+        # 1. Premium check for vote rooms
+        room_type = request.data.get('room_type')
+        if room_type == 'vote':
+            if not getattr(request.user.profile, 'is_premium', False):
+                return Response(
+                    {'detail': 'Only premium users can create Vote Rooms.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
         serializer = RoomCreateUpdateSerializer(
             data=request.data,
             context={'request': request},
@@ -394,5 +414,5 @@ class MyInvitationsView(APIView):
         memberships = RoomMembership.objects.filter(
             user=request.user,
             status=RoomMembershipStatus.PENDING,
-        ).select_related('room__owner', 'invited_by')
+        ).select_related('room', 'room__owner', 'invited_by')
         return Response(RoomMembershipSerializer(memberships, many=True).data)

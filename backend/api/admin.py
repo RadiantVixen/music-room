@@ -34,9 +34,9 @@ admin.site.register(CustomUser, CustomUserAdmin)
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'phone', 'phone_verified', 'provider', 'location']
+    list_display = ['user', 'phone', 'phone_verified', 'provider', 'location', 'is_premium']
     search_fields = ['user__email', 'user__username', 'phone']
-    list_filter = ['phone_verified', 'provider']
+    list_filter = ['phone_verified', 'provider', 'is_premium']
     raw_id_fields = ['user']
 
 

@@ -9,14 +9,18 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRoomsStore } from "../../../store/roomsStore";
+import { showToast } from "../../../utils/toast";
 
 export default function SuggestionsTab({
   roomId,
+  isPremiumUser,
 }: {
   roomId: number | string;
+  isPremiumUser: boolean;
 }) {
   const {
     searchTracks,
@@ -52,6 +56,10 @@ export default function SuggestionsTab({
   }, []);
 
   const handleAddTrack = async (track: any) => {
+    if (!isPremiumUser) {
+      showToast("Upgrade to suggest tracks in vote rooms.", "error");
+      return;
+    }
     try {
       setAddingTrackId(track.deezerId);
 
@@ -67,14 +75,12 @@ export default function SuggestionsTab({
 
       await fetchRoomTracks(roomId);
 
-      Alert.alert("Added", "Track added to the queue");
+      showToast("Track added to the queue", "success");
     } catch (error: any) {
       console.log("Suggest track error:", error?.response?.data || error?.message || error);
+      const errorDetail = error?.response?.data?.detail || "Failed to add track";
 
-      Alert.alert(
-        "Error",
-        error?.response?.data?.detail || "Failed to add track"
-      );
+      showToast(errorDetail, "error");
     } finally {
       setAddingTrackId(null);
     }
@@ -117,7 +123,7 @@ export default function SuggestionsTab({
         <TouchableOpacity
           style={[styles.addButton, isAdding && styles.addButtonDisabled]}
           onPress={() => handleAddTrack(item)}
-          disabled={isAdding}
+          disabled={isAdding || !isPremiumUser}
         >
           <Text style={styles.addButtonText}>
             {isAdding ? "Adding..." : "Add"}
@@ -129,6 +135,13 @@ export default function SuggestionsTab({
 
   return (
     <View style={styles.container}>
+      {!isPremiumUser && (
+        <View style={styles.premiumNotice}>
+          <Text style={styles.premiumNoticeText}>
+            Suggestions are premium-only. Upgrade to add tracks.
+          </Text>
+        </View>
+      )}
       <View style={styles.searchBox}>
         <Ionicons name="search-outline" size={18} color="#888" />
         <TextInput
@@ -219,6 +232,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
   },
+  premiumNotice: {
+    backgroundColor: "#2A1F40",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  premiumNoticeText: {
+    color: "#C9B8FF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -298,10 +322,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   infoCard: {
-  marginTop: 16,
-  backgroundColor: "#1B1328",
-  borderRadius: 16,
-  padding: 16,
+    marginTop: 16,
+    backgroundColor: "#1B1328",
+    borderRadius: 16,
+    padding: 16,
   },
 });
 
