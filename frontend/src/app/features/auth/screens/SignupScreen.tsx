@@ -15,9 +15,13 @@ import AuthInput from "../components/AuthInput";
 import Button from "../../../components/Button";
 import SocialButton from "../../../components/SocialButton";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../../navigation/RootNavigator";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as AuthSession from "expo-auth-session";
 
 import { useAuthStore } from "../../../store/authStore";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignupScreen() {
   type NavigationProp = NativeStackNavigationProp<
@@ -50,6 +54,65 @@ export default function SignupScreen() {
     Alert.alert("Signup failed", JSON.stringify(error?.response?.data || {}));
   }
 };
+
+  const socialLogin = useAuthStore((state) => state.socialLogin);
+  
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID || "128725109709-mqh05ibekghkpd9kjufj0ngk4c7gka22.apps.googleusercontent.com";
+  const googleExtraIds = (process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_IDS || "128725109709-kclrsis87u7trjbbmcqugkb942i0pl3k.apps.googleusercontent.com").split(",");
+  const googleAndroidClientId = googleExtraIds[0]?.trim?.() || googleExtraIds[0];
+  const googleIosClientId = googleExtraIds[1]?.trim?.() || googleExtraIds[1];
+
+  const isGoogleConfigured = true; // Force true since we have fallbacks
+  
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: "musicroom",
+    path: "redirect",
+  });
+  
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: googleWebClientId || "placeholder-web-client-id",
+    androidClientId: googleAndroidClientId,
+    iosClientId: googleIosClientId,
+    redirectUri,
+  });
+
+  React.useEffect(() => {
+    if (response?.type === "success") {
+      const idToken = response.authentication?.idToken;
+
+      if (!idToken) return;
+
+      socialLogin("google", idToken);
+    }
+  }, [response]);
+
+  const handleGoogleLogin = async () => {
+    console.log("Google Login button clicked (Signup)");
+    console.log("Configuration status:", {
+      isGoogleConfigured,
+      googleWebClientId,
+      googleAndroidClientId,
+      googleIosClientId,
+      redirectUri
+    });
+
+    if (!promptAsync) {
+      console.error("promptAsync is not defined!");
+      alert("Google Auth is not ready yet. Please wait a moment or refresh.");
+      return;
+    }
+
+    try {
+      console.log("Calling promptAsync...");
+      const result = await promptAsync();
+      console.log("promptAsync result:", result);
+    } catch (e) {
+      console.error("Error calling promptAsync:", e);
+      alert("Error starting Google Login: " + e.message);
+    }
+  };
+
+  console.log("Google Client ID (Signup):", googleWebClientId);
 
   return (
     <AuthLayout showDecorations={false}>
@@ -117,7 +180,12 @@ export default function SignupScreen() {
 
       {/* Social */}
       <View style={styles.socialRow}>
-        <SocialButton title="Google" icon="google" />
+        <SocialButton
+          title="Google"
+          icon="google"
+          onPress={handleGoogleLogin}
+          // disabled={!isGoogleConfigured}
+        />
         <SocialButton title="Facebook" icon="facebook" />
       </View>
 

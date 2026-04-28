@@ -20,66 +20,36 @@ export default function OfflineNotice() {
   }
 
   return (
-    <View style={styles.container} pointerEvents="none">
-      <View style={styles.card}>
-        <View style={styles.iconBox}>
-          <Ionicons name="cloud-offline" size={20} color="#ff5a5f" />
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>You're Offline</Text>
-          <Text style={styles.subtitle}>Check your connection to access all features.</Text>
-        </View>
-      </View>
+    <View style={styles.container}>
+      <Ionicons name="cloud-offline" size={16} color="#fff" style={styles.icon} />
+      <Text style={styles.title}>You are currently offline.</Text>
+      <Text style={styles.subtitle}>Check your connection to access all features.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    bottom: 50,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    zIndex: 9999,
-  },
-  card: {
-    backgroundColor: "#1E1B2E",
+    backgroundColor: "#ff5a5f",
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 90, 95, 0.3)",
-    maxWidth: 400,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 90, 95, 0.15)",
-    alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    width: "100%",
+    zIndex: 9999,
   },
-  textContainer: {
-    flexShrink: 1,
+  icon: {
+    marginRight: 8,
   },
   title: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
-    marginBottom: 2,
+    marginRight: 6,
   },
   subtitle: {
-    color: "#aaa",
+    color: "rgba(255, 255, 255, 0.8)",
     fontSize: 12,
   },
 });
