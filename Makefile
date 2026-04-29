@@ -3,10 +3,9 @@
 # ==========================================
 COMPOSE := docker compose
 FILE    := docker-compose.yml
-FRONT   := ./frontend
-NVM_DIR := /goinfre/aatki/.nvm
+FRONT   := $(HOME)/Desktop/monoreepo/frontend
+NVM_DIR := $(HOME)/.nvm
 NODE_INIT := export NVM_DIR="$(NVM_DIR)" && [ -s "$(NVM_DIR)/nvm.sh" ] && . "$(NVM_DIR)/nvm.sh" && nvm use 20 --silent
-
 # ==========================================
 # 🐳 BACKEND
 # ==========================================

@@ -1,6 +1,5 @@
 from api.playback_broadcast import serialize_playback_state
 from rest_framework.views import APIView
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.settings import api_settings
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -30,13 +29,6 @@ class RoomPlaybackStateView(APIView):
 class RoomPlaybackPlayView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'playback_control'
-
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, pk=room_id)
@@ -48,13 +40,7 @@ class RoomPlaybackPlayView(APIView):
 class RoomPlaybackPauseView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'playback_control'
-
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
+    
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, pk=room_id)
@@ -66,13 +52,7 @@ class RoomPlaybackPauseView(APIView):
 class RoomPlaybackResumeView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'playback_control'
-
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
+    
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, pk=room_id)
@@ -84,13 +64,7 @@ class RoomPlaybackResumeView(APIView):
 class RoomPlaybackSkipView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'playback_control'
 
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
 
     def post(self, request, room_id):
         room = get_object_or_404(Room, pk=room_id)

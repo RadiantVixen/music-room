@@ -24,6 +24,7 @@ from .views_rooms import (
     RoomListCreateView, RoomDetailView, RoomMembersView,
     InviteToRoomView, RoomInvitationResponseView,
     KickMemberView, LeaveRoomView, MyRoomsView, MyInvitationsView,
+    NearbyDemoRoomsView,
 )
 
 # ─── Music Preferences ────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ urlpatterns = [
     path('rooms/', RoomListCreateView.as_view(), name='room-list-create'),
     path('rooms/mine/', MyRoomsView.as_view(), name='room-mine'),
     path('rooms/invitations/', MyInvitationsView.as_view(), name='room-my-invitations'),
+    path('rooms/nearby/', NearbyDemoRoomsView.as_view(), name='room-nearby'),
     path('rooms/<int:pk>/', RoomDetailView.as_view(), name='room-detail'),
     path('rooms/<int:pk>/members/', RoomMembersView.as_view(), name='room-members'),
     path('rooms/<int:pk>/invite/', InviteToRoomView.as_view(), name='room-invite'),

@@ -20,6 +20,7 @@ import * as Google from "expo-auth-session/providers/google";
 import * as AuthSession from "expo-auth-session";
 
 import { useAuthStore } from "../../../store/authStore";
+import { RootStackParamList } from "../../../navigation/RootNavigator";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -108,11 +109,11 @@ export default function SignupScreen() {
       console.log("promptAsync result:", result);
     } catch (e) {
       console.error("Error calling promptAsync:", e);
-      alert("Error starting Google Login: " + e.message);
+      // alert("Error starting Google Login: " + e.message);
     }
   };
 
-  console.log("Google Client ID (Signup):", googleWebClientId);
+
 
   return (
     <AuthLayout showDecorations={false}>

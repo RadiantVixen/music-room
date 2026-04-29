@@ -56,8 +56,8 @@ export default function LoginScreen() {
 
   const socialLogin = useAuthStore((state) => state.socialLogin);
   
-  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID || "128725109709-mqh05ibekghkpd9kjufj0ngk4c7gka22.apps.googleusercontent.com";
-  const googleExtraIds = (process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_IDS || "128725109709-kclrsis87u7trjbbmcqugkb942i0pl3k.apps.googleusercontent.com").split(",");
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID ;
+  const googleExtraIds = (process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_IDS || "").split(",");
   const googleAndroidClientId = googleExtraIds[0]?.trim?.() || googleExtraIds[0];
   const googleIosClientId = googleExtraIds[1]?.trim?.() || googleExtraIds[1];
 
@@ -107,7 +107,7 @@ export default function LoginScreen() {
       console.log("promptAsync result:", result);
     } catch (e) {
       console.error("Error calling promptAsync:", e);
-      alert("Error starting Google Login: " + e.message);
+      // alert("Error starting Google Login: " + e.message);
     }
   };
 
@@ -116,7 +116,7 @@ export default function LoginScreen() {
   };
 
 
-  console.log("Google Client ID:", googleWebClientId);
+
 
   return (
     <AuthLayout showBackButton={false} showDecorations={false}>

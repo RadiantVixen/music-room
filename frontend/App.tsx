@@ -6,8 +6,8 @@ import { injectScrollbarStyles } from "./src/app/utils/scrollbarStyle";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import OfflineNotice from "./src/app/components/common/OfflineNotice";
 
-import { Toaster } from "react-hot-toast";
-import { Platform } from "react-native";
+// import { Toaster } from "react-hot-toast";
+// import { Platform } from "react-native";
 
 export default function App() {
   const restoreSession = useAuthStore((state) => state.restoreSession);
@@ -26,19 +26,7 @@ export default function App() {
     <SafeAreaProvider>
       <OfflineNotice />
       <RootNavigator />
-      {Platform.OS === "web" && (
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#1E1B2E",
-              color: "#fff",
-              borderRadius: "12px",
-              border: "1px solid #332D4D",
-            },
-          }}
-        />
-      )}
+      
     </SafeAreaProvider>
   );
 }

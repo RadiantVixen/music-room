@@ -204,6 +204,8 @@ export const skipRoomPlaybackRequest = async (roomId: number | string) => {
 };
 
 export const getNearbyDemoRoomsRequest = async () => {
+  console.log("Fetching nearby demo rooms...");
   const { data } = await api.get("/rooms/nearby/");
+  console.log("Fetching nearby demo rooms...", data);
   return data;
 };

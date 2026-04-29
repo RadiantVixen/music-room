@@ -416,3 +416,23 @@ class MyInvitationsView(APIView):
             status=RoomMembershipStatus.PENDING,
         ).select_related('room', 'room__owner', 'invited_by')
         return Response(RoomMembershipSerializer(memberships, many=True).data)
+
+
+class NearbyDemoRoomsView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        rooms = Room.objects.filter(
+            visibility=RoomVisibility.PUBLIC,
+            geo_lat__isnull=False,
+            geo_lon__isnull=False,
+        ).select_related("owner")
+
+        serializer = RoomSerializer(
+            rooms,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data)

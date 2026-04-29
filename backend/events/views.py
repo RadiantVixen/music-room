@@ -17,10 +17,10 @@ from rest_framework import serializers, status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.settings import api_settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+
 
 from api.license_utils import check_license
 from api.logging_utils import log_action
@@ -92,13 +92,8 @@ class TrackListCreateView(generics.GenericAPIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'track_create'
 
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
+    
 
     @extend_schema(
         tags=['Events – Track Vote'],
@@ -216,13 +211,7 @@ class TrackVoteView(APIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    throttle_scope = 'track_vote'
-
-    def get_throttles(self):
-        throttles = [throttle() for throttle in api_settings.DEFAULT_THROTTLE_CLASSES]
-        if self.request.method == 'POST':
-            throttles.append(ScopedRateThrottle())
-        return throttles
+   
 
     @extend_schema(
         tags=['Events – Track Vote'],

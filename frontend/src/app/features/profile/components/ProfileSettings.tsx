@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../../store/authStore";
 import { useAppNavigation } from "../../../hooks/useAppNavigation";
-import { showToast } from "../../../utils/toast";
+
 
 export default function ProfileSettings() {
   const logout = useAuthStore((state) => state.logout);
@@ -25,13 +25,13 @@ export default function ProfileSettings() {
     try {
       if (isPremium) {
         await deactivatePremium();
-        showToast("Premium deactivated.", "success");
+        // showToast("Premium deactivated.", "success");
       } else {
         await activatePremium();
-        showToast("Welcome to Premium!", "success");
+        // showToast("Welcome to Premium!", "success");
       }
     } catch (error) {
-      showToast("Action failed.", "error");
+      // showToast("Action failed.", "error");
     }
   };
 

@@ -54,6 +54,7 @@ export default function HomeScreen() {
     if (room.room_type === "vote" && !isPremiumUser) return false;
     return true;
   });
+  // console.log("Nearby rooms after filtering:", nearbyRooms);
 
   const liveRooms = filteredRooms.filter((room) => room.isLive);
   const featuredRoom = liveRooms[0] || filteredRooms[0];
