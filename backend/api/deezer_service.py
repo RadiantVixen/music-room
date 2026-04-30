@@ -26,3 +26,4 @@ def search_deezer_tracks(query: str, limit: int = 10):
         }
         for track in items
     ]
+    

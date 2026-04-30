@@ -16,7 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoomsStore } from "../../../store/roomsStore";
 import { getRoomImageFromGenre } from "../../../utils/placeholders";
 import { useAuthStore } from "../../../store/authStore";
-// import { showToast } from "../../../utils/toast";
 
 
 export default function CreateRoomScreen() {
@@ -67,7 +66,8 @@ export default function CreateRoomScreen() {
 
   const handleCreate = async () => {
     if (roomType === "vote" && !user?.profile?.is_premium) {
-      // showToast("You must be a premium user to create Vote Rooms. Join the premium plan in your profile settings!", "error");
+        Alert.alert("error", "You must be a premium user to create Vote Rooms. Join the premium plan in your profile settings!");
+      
       return;
     }
 
@@ -98,12 +98,12 @@ export default function CreateRoomScreen() {
 
       const room = await createRoom(payload);
 
-      // showToast("Room created successfully", "success");
+        Alert.alert("success", "Room created successfully");
       navigation.replace("Room", { roomId: room.id.toString() });
     } catch (error: any) {
       console.log("Create room error:", error?.response?.data || error?.message || error);
       const errorDetail = error?.response?.data?.detail || "Failed to create room";
-      // showToast(errorDetail, "error");
+        Alert.alert("error", errorDetail);
     }
   };
 
