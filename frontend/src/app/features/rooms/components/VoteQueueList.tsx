@@ -14,12 +14,10 @@ export default function VoteQueueList({
   roomId,
   queue,
   isLoading,
-  isPremiumUser,
 }: {
   roomId: number | string;
   queue: any[];
   isLoading?: boolean;
-  isPremiumUser: boolean;
 }) {
   const { voteTrack } = useRoomsStore();
 
@@ -44,13 +42,6 @@ export default function VoteQueueList({
 
   return (
     <View style={styles.container}>
-      {!isPremiumUser && (
-        <View style={styles.premiumNotice}>
-          <Text style={styles.premiumNoticeText}>
-            Voting is a premium feature. Upgrade to vote.
-          </Text>
-        </View>
-      )}
       {queue.map((track, index) => (
         <View key={track.id} style={styles.card}>
           <Text style={styles.rank}>{index + 1}</Text>
@@ -83,10 +74,9 @@ export default function VoteQueueList({
               style={[
                 styles.voteButton,
                 track.has_voted && styles.voteButtonActive,
-                !isPremiumUser && styles.voteButtonDisabled,
               ]}
               onPress={() => voteTrack(roomId, track.id)}
-              disabled={track.has_voted || !isPremiumUser}
+              disabled={track.has_voted}
             >
               <Ionicons
                 name="arrow-up"
@@ -107,17 +97,6 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 18,
     paddingHorizontal: 16,
-  },
-  premiumNotice: {
-    backgroundColor: "#2A1F40",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  premiumNoticeText: {
-    color: "#C9B8FF",
-    fontSize: 12,
-    fontWeight: "600",
   },
   card: {
     flexDirection: "row",
