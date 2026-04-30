@@ -23,7 +23,7 @@ def advance_active_rooms():
 
         if duration_ms <= 0:
             continue
-        
+
         elapsed_ms = get_elapsed_ms(state)
         # print(f"Room {state.room_id}: elapsed {elapsed_ms} ms / {duration_ms} ms")
         if elapsed_ms >= duration_ms:

@@ -6,8 +6,6 @@ import { injectScrollbarStyles } from "./src/app/utils/scrollbarStyle";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import OfflineNotice from "./src/app/components/common/OfflineNotice";
 
-// import { Toaster } from "react-hot-toast";
-// import { Platform } from "react-native";
 
 export default function App() {
   const restoreSession = useAuthStore((state) => state.restoreSession);

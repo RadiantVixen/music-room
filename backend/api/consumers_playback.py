@@ -56,3 +56,4 @@ class RoomPlaybackConsumer(AsyncJsonWebsocketConsumer):
         room = Room.objects.get(pk=self.room_id)
         state = get_or_create_playback_state(room)
         return serialize_playback_state(state)
+        

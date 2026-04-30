@@ -1,9 +1,11 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { showToast } from "../utils/toast";
+import {Alert} from "react-native"
+
+const apiBaseURL = "http://localhost:8000/api";
 
 export const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: apiBaseURL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -24,7 +26,8 @@ api.interceptors.response.use(
   (error) => {
     // 1. Handle Rate Limiting (429 Too Many Requests)
     if (error.response && error.response.status === 429) {
-      showToast("Too many requests. Please slow down and try again later.", "error");
+      Alert.alert("error", "Too many requests. Please slow down and try again later.");
+      
     }
     return Promise.reject(error);
   }

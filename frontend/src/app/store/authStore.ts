@@ -276,12 +276,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       const response = await socialLoginRequest(provider, token);
+      console.log("Social login backend response:", response);
 
       const user = response?.data?.user;
       const accessToken = response?.data?.access;
       const refreshToken = response?.data?.refresh;
 
       if (!user || !accessToken || !refreshToken) {
+        console.error("Missing fields in response:", { user, accessToken, refreshToken });
         throw new Error("Invalid OAuth response.");
       }
 

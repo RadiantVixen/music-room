@@ -214,10 +214,16 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 from datetime import timedelta
 
 
+with open(os.path.join(BASE_DIR, 'keys/private.key'), 'r') as f:
+    PRIVATE_KEY = f.read()
+
+with open(os.path.join(BASE_DIR, 'keys/public.key'), 'r') as f:
+    PUBLIC_KEY = f.read()
+
 SIMPLE_JWT = {
     "ALGORITHM": "RS256",
-    "SIGNING_KEY": (BASE_DIR / "keys/private.key").read_text().strip(),
-    "VERIFYING_KEY": (BASE_DIR / "keys/public.key").read_text().strip(),
+    "SIGNING_KEY": PRIVATE_KEY,
+    "VERIFYING_KEY": PUBLIC_KEY,
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "sub",
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -249,26 +255,26 @@ CORS_ALLOW_CREDENTIALS = True
 
 
 
-google_client_id = (
+GOOGLE_CLIENT_ID = (
     os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     or os.getenv("GOOGLE_CLIENT_ID")
     or ""
 )
 _allowed_ids = os.getenv("GOOGLE_OAUTH_CLIENT_IDS", "")
-google_allowed_client_ids = [id.strip() for id in _allowed_ids.split(",") if id.strip()]
-if google_client_id and google_client_id not in google_allowed_client_ids:
-    google_allowed_client_ids.append(google_client_id)
-google_client_secret = (
+GOOGLE_ALLOWED_CLIENT_IDS = [id.strip() for id in _allowed_ids.split(",") if id.strip()]
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID not in GOOGLE_ALLOWED_CLIENT_IDS:
+    GOOGLE_ALLOWED_CLIENT_IDS.append(GOOGLE_CLIENT_ID)
+GOOGLE_CLIENT_SECRET = (
     os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
     or os.getenv("GOOGLE_CLIENT_SECRET")
     or ""
 )
-facebook_client_id = (
+FACEBOOK_CLIENT_ID = (
     os.getenv("FACEBOOK_OAUTH_CLIENT_ID")
     or os.getenv("FACEBOOK_CLIENT_ID")
     or ""
 )
-facebook_client_secret = (
+FACEBOOK_CLIENT_SECRET = (
     os.getenv("FACEBOOK_OAUTH_CLIENT_SECRET")
     or os.getenv("FACEBOOK_CLIENT_SECRET")
     or ""

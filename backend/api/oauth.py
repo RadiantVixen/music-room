@@ -14,12 +14,12 @@ User = get_user_model()
 
 
 def verify_google_id_token(token):
-    if not settings.google_client_id or settings.google_client_id.startswith('your-'):
+    if not settings.GOOGLE_CLIENT_ID or settings.GOOGLE_CLIENT_ID.startswith('your-'):
         return None, 'Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
 
     try:
         # Support multiple audiences (Client IDs from Web, Android, iOS)
-        audience = settings.google_allowed_client_ids if settings.google_allowed_client_ids else settings.google_client_id
+        audience = settings.GOOGLE_ALLOWED_CLIENT_IDS if settings.GOOGLE_ALLOWED_CLIENT_IDS else settings.GOOGLE_CLIENT_ID
         
         idinfo = id_token.verify_oauth2_token(
             token,
@@ -48,8 +48,8 @@ def verify_google_id_token(token):
 
 
 def verify_facebook_token(token):
-    app_id = settings.facebook_client_id
-    app_secret = settings.facebook_client_secret
+    app_id = settings.FACEBOOK_CLIENT_ID
+    app_secret = settings.FACEBOOK_CLIENT_SECRET
 
     if not app_id or not app_secret or app_id.startswith('your-') or app_secret.startswith('your-'):
         return None, 'Facebook OAuth is not configured. Set FACEBOOK_OAUTH_CLIENT_ID and FACEBOOK_OAUTH_CLIENT_SECRET.'

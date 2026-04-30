@@ -25,13 +25,15 @@ export default function ProfileSettings() {
     try {
       if (isPremium) {
         await deactivatePremium();
-        // showToast("Premium deactivated.", "success");
+        Alert.alert("Success", "Premium deactivated.");
       } else {
         await activatePremium();
-        // showToast("Welcome to Premium!", "success");
+        Alert.alert("Success", "Welcome to Premium!");
+        
       }
     } catch (error) {
-      // showToast("Action failed.", "error");
+        Alert.alert("error", "Action failed.");
+      
     }
   };
 

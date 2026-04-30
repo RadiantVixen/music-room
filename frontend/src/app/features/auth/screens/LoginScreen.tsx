@@ -54,60 +54,59 @@ export default function LoginScreen() {
     }
   };
 
+  
+  
   const socialLogin = useAuthStore((state) => state.socialLogin);
-  
-  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID ;
-  const googleExtraIds = (process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_IDS || "").split(",");
-  const googleAndroidClientId = googleExtraIds[0]?.trim?.() || googleExtraIds[0];
-  const googleIosClientId = googleExtraIds[1]?.trim?.() || googleExtraIds[1];
 
-  const isGoogleConfigured = true; // Force true since we have fallbacks
-  
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID; 
+
+
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: "musicroom",
     path: "redirect",
   });
-  
+
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: googleWebClientId || "placeholder-web-client-id",
+    webClientId: googleWebClientId,
     androidClientId: googleAndroidClientId,
     iosClientId: googleIosClientId,
     redirectUri,
+    responseType: "id_token",
   });
 
   useEffect(() => {
-    if (response?.type === "success") {
-      const idToken = response.authentication?.idToken;
+      if (response?.type === "success") {
+        console.log("FULL RESPONSE:", response);
 
-      if (!idToken) return;
+        const idToken = response.authentication?.idToken || response.params?.id_token;
+        const accessToken = response.authentication?.accessToken || response.params?.access_token;
 
-      socialLogin("google", idToken);
-    }
+        const token = idToken || accessToken;
+
+        if (!token) {
+          console.log("Response params:", response.params);
+          console.error("No token received");
+          return;
+        }
+
+        console.log("AUTH RESPONSE:", response);
+        socialLogin("google", token);
+      }
   }, [response]);
 
+
   const handleGoogleLogin = async () => {
-    console.log("Google Login button clicked");
-    console.log("Configuration status:", {
-      isGoogleConfigured,
-      googleWebClientId,
-      googleAndroidClientId,
-      googleIosClientId,
-      redirectUri
-    });
 
     if (!promptAsync) {
-      console.error("promptAsync is not defined!");
       alert("Google Auth is not ready yet. Please wait a moment or refresh.");
       return;
     }
 
     try {
-      console.log("Calling promptAsync...");
       const result = await promptAsync();
-      console.log("promptAsync result:", result);
     } catch (e) {
-      console.error("Error calling promptAsync:", e);
-      // alert("Error starting Google Login: " + e.message);
     }
   };
 
@@ -196,7 +195,6 @@ export default function LoginScreen() {
           title="Google"
           icon="google"
           onPress={handleGoogleLogin}
-          // disabled={!isGoogleConfigured}
         />
         <SocialButton
           title="Facebook"
