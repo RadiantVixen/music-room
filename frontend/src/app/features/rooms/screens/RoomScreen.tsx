@@ -17,16 +17,32 @@ export default function RoomScreen() {
   const { roomId } = route.params;
   const { width: windowWidth } = useWindowDimensions();
 
-  const { selectedRoom, fetchRoomDetails, clearSelectedRoom, isLoading } =
-    useRoomsStore();
+  const {
+    selectedRoom,
+    fetchRoomDetails,
+    clearSelectedRoom,
+    clearRoomTracks,
+    clearDelegationDevices,
+    isLoading,
+  } = useRoomsStore();
 
   useEffect(() => {
+    clearRoomTracks();
+    clearDelegationDevices();
     fetchRoomDetails(roomId);
 
     return () => {
       clearSelectedRoom();
+      clearRoomTracks();
+      clearDelegationDevices();
     };
-  }, [roomId, fetchRoomDetails, clearSelectedRoom]);
+  }, [
+    roomId,
+    fetchRoomDetails,
+    clearSelectedRoom,
+    clearRoomTracks,
+    clearDelegationDevices,
+  ]);
 
   const room = selectedRoom;
 

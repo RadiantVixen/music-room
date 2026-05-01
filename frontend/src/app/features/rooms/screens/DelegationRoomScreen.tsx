@@ -63,6 +63,13 @@ export default function DelegationRoomScreen({ room }: { room: any }) {
   useRoomPlaybackSocket(room?.id);
 
   useEffect(() => {
+    if (room?.id) {
+      fetchRoomTracks(room.id);
+      fetchPlaybackState(room.id);
+    }
+  }, [room?.id, fetchRoomTracks, fetchPlaybackState]);
+
+  useEffect(() => {
     if (!room?.id || !user?.id) return;
     if (!isOwner) return;
     if (delegationDevices.length > 0) return;

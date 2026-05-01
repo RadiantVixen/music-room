@@ -98,7 +98,7 @@ export default function CreateRoomScreen() {
 
       const room = await createRoom(payload);
 
-        Alert.alert("success", "Room created successfully");
+        // Alert.alert("success", "Room created successfully");
       navigation.replace("Room", { roomId: room.id.toString() });
     } catch (error: any) {
       console.log("Create room error:", error?.response?.data || error?.message || error);
