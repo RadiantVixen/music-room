@@ -17,7 +17,6 @@ import SocialButton from "../../../components/SocialButton";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
-import * as AuthSession from "expo-auth-session";
 
 import { useAuthStore } from "../../../store/authStore";
 import { RootStackParamList } from "../../../navigation/RootNavigator";
@@ -57,24 +56,15 @@ export default function SignupScreen() {
 };
 
   const socialLogin = useAuthStore((state) => state.socialLogin);
-  
-  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID || "128725109709-mqh05ibekghkpd9kjufj0ngk4c7gka22.apps.googleusercontent.com";
-  const googleExtraIds = (process.env.EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_IDS || "128725109709-kclrsis87u7trjbbmcqugkb942i0pl3k.apps.googleusercontent.com").split(",");
-  const googleAndroidClientId = googleExtraIds[0]?.trim?.() || googleExtraIds[0];
-  const googleIosClientId = googleExtraIds[1]?.trim?.() || googleExtraIds[1];
 
-  const isGoogleConfigured = true; // Force true since we have fallbacks
-  
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "musicroom",
-    path: "redirect",
-  });
-  
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: googleWebClientId || "placeholder-web-client-id",
-    androidClientId: googleAndroidClientId,
+    webClientId: googleWebClientId,
     iosClientId: googleIosClientId,
-    redirectUri,
+    androidClientId: googleAndroidClientId,
   });
 
   React.useEffect(() => {
@@ -88,28 +78,15 @@ export default function SignupScreen() {
   }, [response]);
 
   const handleGoogleLogin = async () => {
-    console.log("Google Login button clicked (Signup)");
-    console.log("Configuration status:", {
-      isGoogleConfigured,
-      googleWebClientId,
-      googleAndroidClientId,
-      googleIosClientId,
-      redirectUri
-    });
-
     if (!promptAsync) {
-      console.error("promptAsync is not defined!");
       alert("Google Auth is not ready yet. Please wait a moment or refresh.");
       return;
     }
 
     try {
-      console.log("Calling promptAsync...");
-      const result = await promptAsync();
-      console.log("promptAsync result:", result);
+      await promptAsync();
     } catch (e) {
       console.error("Error calling promptAsync:", e);
-      // alert("Error starting Google Login: " + e.message);
     }
   };
 

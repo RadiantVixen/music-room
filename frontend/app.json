@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "oumaiyma1001",
     "name": "music-room",
     "slug": "music-room",
     "scheme": "musicroom",
@@ -15,7 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oumaiyma1001.musicroom"
+      "bundleIdentifier": "com.oumaiyma1001.musicroom",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -34,10 +38,14 @@
       [
         "@react-native-google-signin/google-signin",
         {
-          "iosUrlScheme": "com.googleusercontent.apps.789187408069-bb5dn210nm7sdb70886u5g06p8o3ggf0"
+          "iosUrlScheme": "com.googleusercontent.apps.1044065249100-h3kp9mq728mj1kp8i066ksidajebjj1o"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e2737b44-2460-495f-85b2-c97028e3303c"
+      }
+    }
   }
 }
-

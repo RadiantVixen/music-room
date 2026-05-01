@@ -20,7 +20,6 @@ import SocialButton from "../../../components/SocialButton";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { useAuthStore } from "../../../store/authStore";
-import * as AuthSession from "expo-auth-session";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -59,41 +58,30 @@ export default function LoginScreen() {
   const socialLogin = useAuthStore((state) => state.socialLogin);
 
   const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID; 
-
-
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "musicroom",
-    path: "redirect",
-  });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: googleWebClientId,
-    androidClientId: googleAndroidClientId,
     iosClientId: googleIosClientId,
-    redirectUri,
-    responseType: "id_token",
+    androidClientId: googleAndroidClientId,
   });
 
   useEffect(() => {
-      if (response?.type === "success") {
-        console.log("FULL RESPONSE:", response);
+    if (!response) return;
+    console.log("AUTH RESPONSE TYPE:", response.type);
+    console.log("AUTH RESPONSE FULL:", JSON.stringify(response, null, 2));
 
-        const idToken = response.authentication?.idToken || response.params?.id_token;
-        const accessToken = response.authentication?.accessToken || response.params?.access_token;
-
-        const token = idToken || accessToken;
-
-        if (!token) {
-          console.log("Response params:", response.params);
-          console.error("No token received");
-          return;
-        }
-
-        console.log("AUTH RESPONSE:", response);
-        socialLogin("google", token);
+    if (response.type === "success") {
+      const idToken = response.authentication?.idToken || response.params?.id_token;
+      if (!idToken) {
+        console.error("No ID token received");
+        return;
       }
+      socialLogin("google", idToken);
+    } else if (response.type === "error") {
+      console.error("AUTH ERROR:", response.error, response.params);
+    }
   }, [response]);
 
 

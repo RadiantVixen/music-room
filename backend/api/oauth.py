@@ -14,25 +14,27 @@ User = get_user_model()
 
 
 def verify_google_id_token(token):
-    if not settings.GOOGLE_CLIENT_ID or settings.GOOGLE_CLIENT_ID.startswith('your-'):
-        return None, 'Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.'
-
+    print("Verifying Google ID token...")  # Debug log
     try:
         # Support multiple audiences (Client IDs from Web, Android, iOS)
         audience = settings.GOOGLE_ALLOWED_CLIENT_IDS if settings.GOOGLE_ALLOWED_CLIENT_IDS else settings.GOOGLE_CLIENT_ID
-        
+        # print settings.GOOGLE_ALLOWED_CLIENT_IDS
+        print(f"Google allowed client IDs: {settings.GOOGLE_ALLOWED_CLIENT_IDS}")  # Debug log
+        print(f"Using Google audience: {token}")  # Debug log
         idinfo = id_token.verify_oauth2_token(
             token,
             google_requests.Request(),
             audience
         )
-
+        
+        print("Google ID token verified. Payload:", idinfo)  # Debug log
         if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
             return None, "Wrong issuer."
+        print("Google token issuer verified.")  # Debug log
 
         if not idinfo.get("email_verified"):
             return None, "Email not verified by Google."
-
+        print("Google email verified.")  # Debug log
         return {
             "email": idinfo["email"],
             "first_name": idinfo.get("given_name", ""),
@@ -91,11 +93,13 @@ def verify_facebook_token(token):
 class SocialLoginView(APIView):
     def post(self, request):
         serializer = SocialLoginSerializer(data=request.data)
+        print("Received social login request:", request.data)  # Debug log
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         provider = serializer.validated_data['provider']
         token = serializer.validated_data['token']
+        print(f"Processing {provider} login with token: {token[:10]}...")  # Debug log
 
         if provider == "google":
             user_data, error = verify_google_id_token(token)
@@ -106,6 +110,8 @@ class SocialLoginView(APIView):
                 {"error": "Invalid provider"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        print(f"User data from {provider}: {user_data}, error: {error}")  # Debug log
 
         if not user_data or not user_data.get("email"):
             return Response(
@@ -113,6 +119,7 @@ class SocialLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        print(f"Creating or updating user for email: {user_data['email']}")  # Debug log
         user, created = User.objects.get_or_create(
             email=user_data["email"],
             defaults={
