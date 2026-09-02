@@ -9,24 +9,24 @@ Designed for real-time environments (like parties or festivals), users suggest s
 
 --Image of: --Dynamic Track Voting and Real-time RowNumber Ranking
 
-Concurrency Gated: Avoids standard row locks via Django F() atomic database-level increments [7].
-Dynamic Order Calculation: Uses SQL RowNumber() window computations on query execution to dynamically rank tracks with deterministic tie-breaking [7].
+Concurrency Gated: Avoids standard row locks via Django F() atomic database-level increments.
+Dynamic Order Calculation: Uses SQL RowNumber() window computations on query execution to dynamically rank tracks with deterministic tie-breaking.
 2. Multi-User Playlist Reordering (Sentinel Pattern)
 Collaborative playlists allow multiple authorized editors to drag and drop tracks simultaneously. Traditional indexing causes cascade write collisions; Music Room resolves this using an optimized Sentinel Position Pattern coupled with optimistic client rendering.
 
 --Image of: --Sentinel Position Playlist Sync and Version Consistency
 
-Sentinel Reordering: Calculates position indices as floats ((Position_Above + Position_Below) / 2). Eliminates indices cascades, preserving a single database-row update [8].
-Version Coherence: Tracked via a synchronized PlaylistVersion counter that acts as an optimistic lock, alerting connected users of real-time bulk shifts [8].
+Sentinel Reordering: Calculates position indices as floats ((Position_Above + Position_Below) / 2). Eliminates indices cascades, preserving a single database-row update.
+Version Coherence: Tracked via a synchronized PlaylistVersion counter that acts as an optimistic lock, alerting connected users of real-time bulk shifts.
 3. Secure Device Playback Delegation
-Grants owners the ability to delegate playback actions (Play, Pause, Skip) of registered physical devices to friends securely [8]. Action updates propagate instantly through WebSockets utilizing Redis as a fast in-memory message broker [5, 8].
+Grants owners the ability to delegate playback actions (Play, Pause, Skip) of registered physical devices to friends securely. Action updates propagate instantly through WebSockets utilizing Redis as a fast in-memory message broker.
 
 --Image of: --Secure Device Delegation and Idempotent Playback Controls
 
-Idempotency Keys: Network-resilient commands use action_id validations to prevent duplicated skip/pause actions in flaky mobile environments [8].
-Token-Verified Channels: WebSockets are gated by custom JWTAuthMiddleware passing JWTs in URL query strings [9].
+Idempotency Keys: Network-resilient commands use action_id validations to prevent duplicated skip/pause actions in flaky mobile environments.
+Token-Verified Channels: WebSockets are gated by custom JWTAuthMiddleware passing JWTs in URL query strings.
 🛠 System Architecture & Data Flow
-Music Room divides responsibilities between structured, rate-limited RESTful API endpoints [9] and real-time WebSocket channels managed via ASGI Daphne servers [5, 6].
+Music Room divides responsibilities between structured, rate-limited RESTful API endpoints and real-time WebSocket channels managed via ASGI Daphne servers.
 
 flowchart TD
     %% Clients
@@ -92,7 +92,7 @@ Robust Offline Mode (expo-file-system)
 Playlists are cached locally using AsyncStorage and synced immediately on network re-entry.
 High-fidelity tracks are downloaded into phone local storage in the background, allowing offline listening with custom play paths.
 Advanced Geofenced Licenses
-Location-based rooms verify proximity utilizing Haversine formulas. Mutation REST requests (adding, voting) require coordinate inputs to verify users are inside the live boundary, while WebSocket reading connections remain open-ended [9].
+Location-based rooms verify proximity utilizing Haversine formulas. Mutation REST requests (adding, voting) require coordinate inputs to verify users are inside the live boundary, while WebSocket reading connections remain open-ended.
 ⚙️ Quick Start (Dockerized Development)
 Launch the entire containerized architecture in less than two minutes.
 
@@ -100,7 +100,7 @@ Launch the entire containerized architecture in less than two minutes.
 Install Docker and Docker Compose.
 
 2. Environment Configurations
-Create a .env file in the root directory [6]:
+Create a .env file in the root directory:
 
 POSTGRES_PASSWORD=your_secure_db_pass
 DJANGO_SECRET_KEY=your_django_secret_key
@@ -110,27 +110,27 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 3. Boot Up Services
 docker compose up -d --build
-This launches [6]:
+This launches:
 
 auth-service: The Django ASGI application running via Daphne (http://localhost:8000)
 auth-postgres: Postgres 15 database instance with persistent volumes
 redis: High-speed message broker for Django Channels & global rate limiting
 4. Interactive Documentation
-Access the auto-generated interactive Swagger specifications [7]:
+Access the auto-generated interactive Swagger specifications:
 
 Swagger UI: http://localhost:8000/api/schema/swagger-ui/
 Redoc: http://localhost:8000/api/schema/redoc/
 🧪 Testing Suite
-The repository includes a comprehensive testing block featuring 57+ tests validating race conditions, license calculations, and concurrency anomalies under stress [10].
+The repository includes a comprehensive testing block featuring 57+ tests validating race conditions, license calculations, and concurrency anomalies under stress.
 
 # Execute the suite inside the active container
 docker compose exec auth-service python manage.py test
 Key Test Matrix
-Multi-Threaded Concurrency Testing: Spawns multiple parallel test threads simulating users voting and reordering playlists simultaneously to guarantee no deadlocks or index duplicates [10].
-Coordinate Haversine Testing: Mocks geographic coordinate distances to verify correct behavior of location-based gating on REST API endpoints [10].
-Idempotency Assertions: Verifies action_id reuse triggers correct rejection with no double-state execution [8].
+Multi-Threaded Concurrency Testing: Spawns multiple parallel test threads simulating users voting and reordering playlists simultaneously to guarantee no deadlocks or index duplicates.
+Coordinate Haversine Testing: Mocks geographic coordinate distances to verify correct behavior of location-based gating on REST API endpoints.
+Idempotency Assertions: Verifies action_id reuse triggers correct rejection with no double-state execution.
 📚 REST API Reference Quick-View
-The complete specification is detailed in API_SCHEMAS.md [11]. Below are the primary interaction endpoints:
+The complete specification is detailed in API_SCHEMAS.md. Below are the primary interaction endpoints:
 
 Endpoint	Method	Auth	Description	Key Payload / Headers
 /api/signup/	POST	Public	Register user & auto-generate profiles.	{email, full_name, password}
